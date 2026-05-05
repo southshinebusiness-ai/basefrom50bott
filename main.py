@@ -18,11 +18,12 @@ from handlers import main_menu, start_rf, calculator, guide, simple, admin
 
 async def main():
     # Логирование в файл и в консоль
+import os
+    os.makedirs("data", exist_ok=True)
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         handlers=[
-            logging.FileHandler("data/bot.log"),
             logging.StreamHandler(sys.stdout),
         ]
     )
