@@ -1,5 +1,5 @@
 """
-Хендлеры простых разделов: выкуп и контакты.
+Хендлеры выкупа и контактов. Правки #13, #14.
 """
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
@@ -14,9 +14,8 @@ router = Router()
 
 @router.callback_query(F.data == "buyout")
 async def show_buyout(callback: CallbackQuery):
-    """Услуга выкупа — описание + кнопка в личку."""
+    """Правки #13 (новый текст) и #14 (кнопка Сделать заказ)."""
     await db.log_event(callback.from_user.id, "view_buyout")
-
     await callback.message.edit_text(
         texts.BUYOUT_INFO,
         reply_markup=buyout_menu(),
@@ -27,16 +26,13 @@ async def show_buyout(callback: CallbackQuery):
 
 @router.callback_query(F.data == "contacts")
 async def show_contacts(callback: CallbackQuery):
-    """Связь и каналы — все ссылки."""
     await db.log_event(callback.from_user.id, "view_contacts")
 
     youtube = config.YOUTUBE_LINK if config.YOUTUBE_LINK else "скоро"
     tiktok = config.TIKTOK_LINK if config.TIKTOK_LINK else "скоро"
 
-    text = texts.CONTACTS.format(youtube=youtube, tiktok=tiktok)
-
     await callback.message.edit_text(
-        text,
+        texts.CONTACTS.format(youtube=youtube, tiktok=tiktok),
         reply_markup=back_to_main(),
         parse_mode="HTML",
         disable_web_page_preview=True
