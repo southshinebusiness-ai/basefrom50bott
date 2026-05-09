@@ -1,6 +1,6 @@
 """
-Раздел "Старт с РФ" — бесплатный мини-курс с лид-магнитом.
-Перед выдачей материалов — проверка подписки на канал.
+Раздел "Старт с РФ" — мини-курс с лид-магнитом.
+Правки #1 (кнопка назад в уроках), #4 (удаление сообщений после курса).
 """
 from pathlib import Path
 from aiogram import Router, F, Bot
@@ -8,17 +8,17 @@ from aiogram.types import CallbackQuery, FSInputFile
 
 from db import database as db
 from utils.keyboards import (
-    start_course, next_lesson, finish_course, check_subscription, back_to_main
+    start_course, lesson_nav, finish_course, check_subscription, back_to_main
 )
 from utils.helpers import is_subscribed_to_channel
 from content import texts
 
 router = Router()
+TOTAL_LESSONS = 5
 
 
 @router.callback_query(F.data == "start_rf")
 async def show_start_rf(callback: CallbackQuery, bot: Bot):
-    """Старт раздела — проверка подписки и показ интро."""
     user_id = callback.from_user.id
     await db.log_event(user_id, "open_start_rf")
 
@@ -45,7 +45,6 @@ async def show_start_rf(callback: CallbackQuery, bot: Bot):
 
 @router.callback_query(F.data == "check_sub")
 async def recheck_subscription(callback: CallbackQuery, bot: Bot):
-    """Юзер нажал 'Я подписался' — проверяем заново."""
     user_id = callback.from_user.id
     is_subbed = await is_subscribed_to_channel(bot, user_id)
     await db.set_subscription_status(user_id, is_subbed)
@@ -59,12 +58,10 @@ async def recheck_subscription(callback: CallbackQuery, bot: Bot):
         )
     else:
         await callback.answer(
-            "Не вижу твою подписку. Подпишись на канал и жми снова.",
+            "Не вижу твою подписку. Подпишись и жми снова.",
             show_alert=True
         )
 
-
-# ============ УРОКИ ============
 
 LESSON_TEXTS = {
     1: texts.LESSON_1,
@@ -77,7 +74,7 @@ LESSON_TEXTS = {
 
 @router.callback_query(F.data.startswith("lesson_"))
 async def show_lesson(callback: CallbackQuery):
-    """Показывает урок по номеру."""
+    """Правка #1: навигация вперёд И назад по урокам."""
     user_id = callback.from_user.id
     lesson_num = int(callback.data.split("_")[1])
 
@@ -89,12 +86,8 @@ async def show_lesson(callback: CallbackQuery):
     await db.log_event(user_id, "view_lesson", {"lesson": lesson_num})
 
     text = LESSON_TEXTS[lesson_num]
-
-    if lesson_num < 5:
-        keyboard = next_lesson(lesson_num)
-    else:
-        # Последний урок — после него финал курса
-        keyboard = finish_course()
+    # Правка #1: lesson_nav показывает кнопки назад+вперёд
+    keyboard = lesson_nav(lesson_num, TOTAL_LESSONS)
 
     await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
@@ -102,9 +95,18 @@ async def show_lesson(callback: CallbackQuery):
 
 @router.callback_query(F.data == "get_pdfs")
 async def send_pdfs(callback: CallbackQuery):
-    """Отправляет финальные PDF после прохождения курса."""
+    """
+    Правка #4: удаляем сообщение с кнопкой "Получить PDF"
+    после того как PDF отправлен.
+    """
     user_id = callback.from_user.id
     await db.log_event(user_id, "received_pdfs")
+
+    # Правка #4: удаляем исходное сообщение с кнопкой
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
 
     pdf_dir = Path("content/pdfs")
     suppliers_pdf = pdf_dir / "suppliers_rf.pdf"
@@ -117,7 +119,9 @@ async def send_pdfs(callback: CallbackQuery):
         )
     else:
         await callback.message.answer(
-            "📥 База РФ поставщиков скоро будет загружена. Пиши @mmarsellus если срочно нужно."
+            "📥 <b>База РФ поставщиков</b> скоро будет загружена.\n"
+            "Пиши @mmarsellus если нужна срочно.",
+            parse_mode="HTML"
         )
 
     if course_pdf.exists():
@@ -126,9 +130,12 @@ async def send_pdfs(callback: CallbackQuery):
             caption="📥 Полный мини-курс одним файлом"
         )
 
-    await callback.message.answer(
+    # Финальное сообщение с кнопкой перехода к гайду
+    from utils.keyboards import finish_course
+    fin_msg = await callback.message.answer(
         texts.COURSE_FINISH,
         reply_markup=finish_course(),
         parse_mode="HTML"
     )
+
     await callback.answer("PDF отправлены ✅")
