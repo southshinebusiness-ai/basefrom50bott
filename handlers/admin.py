@@ -1,5 +1,5 @@
 """
-Админ-команды. Правка #5: добавлена /grant для ручной выдачи доступа.
+Админ-команды. /grant теперь использует join_request систему.
 """
 import asyncio
 from datetime import datetime, timedelta
@@ -40,8 +40,9 @@ async def cmd_stats(message: Message):
         f"💰 Общая выручка: <b>{stats['total_revenue']:,}₽</b>\n\n"
         f"📐 Курс юаня: <b>{rate}₽</b>\n\n"
         f"<i>Команды:\n"
-        f"/set_rate 13.6 — обновить курс юаня\n"
-        f"/grant USER_ID — выдать доступ к гайду вручную\n"
+        f"/set_rate 13.6 — курс юаня\n"
+        f"/grant USER_ID — выдать доступ к гайду\n"
+        f"/revoke USER_ID — забрать доступ\n"
         f"/user USER_ID — инфа о юзере\n"
         f"/broadcast — рассылка</i>"
     )
@@ -64,15 +65,15 @@ async def cmd_set_rate(message: Message):
         await message.answer("❌ Некорректный курс.", parse_mode="HTML")
         return
     await db.set_setting("yuan_rate", str(rate))
-    await message.answer(f"✅ Курс юаня обновлён: <b>{rate}₽</b>", parse_mode="HTML")
+    await message.answer(f"✅ Курс юаня: <b>{rate}₽</b>", parse_mode="HTML")
 
 
 @router.message(Command("grant"))
 async def cmd_grant(message: Message, bot: Bot):
     """
-    Правка #5: ручная выдача доступа к гайду.
-    Использование: /grant USER_ID
-    Например: /grant 128529278
+    Выдаёт доступ к гайду вручную.
+    Отмечает юзера как купившего в БД, затем отправляет ему
+    ссылку с запросом на вступление — бот автоматически одобрит.
     """
     if not is_admin(message.from_user.id):
         return
@@ -80,8 +81,7 @@ async def cmd_grant(message: Message, bot: Bot):
     parts = message.text.split()
     if len(parts) != 2:
         await message.answer(
-            "Использование: <code>/grant USER_ID</code>\n"
-            "Например: <code>/grant 128529278</code>",
+            "Использование: <code>/grant USER_ID</code>",
             parse_mode="HTML"
         )
         return
@@ -89,52 +89,96 @@ async def cmd_grant(message: Message, bot: Bot):
     try:
         target_user_id = int(parts[1])
     except ValueError:
-        await message.answer("❌ Некорректный ID пользователя.", parse_mode="HTML")
+        await message.answer("❌ Некорректный ID.", parse_mode="HTML")
         return
 
     user = await db.get_user(target_user_id)
     if not user:
-        await message.answer(f"❌ Пользователь {target_user_id} не найден в БД.", parse_mode="HTML")
+        await message.answer(
+            f"❌ Пользователь {target_user_id} не найден в БД.\n"
+            f"Он должен сначала написать /start боту.",
+            parse_mode="HTML"
+        )
         return
 
     # Отмечаем как купившего
     await db.mark_purchased(target_user_id)
-    await db.log_event(target_user_id, "guide_granted_manually", {"by_admin": message.from_user.id})
+    await db.log_event(target_user_id, "guide_granted_manually", {
+        "by_admin": message.from_user.id
+    })
 
-    # Создаём инвайт-ссылку
+    # Создаём безопасную ссылку с join_request
     try:
         invite = await bot.create_chat_invite_link(
             chat_id=config.PRIVATE_CHANNEL_ID,
-            member_limit=1,
-            expire_date=datetime.now() + timedelta(days=7),
-            name=f"Grant for {target_user_id}"
+            creates_join_request=True,
+            expire_date=datetime.now() + timedelta(days=3),
+            name=f"Grant {target_user_id}"
         )
         invite_link = invite.invite_link
 
-        # Отправляем ссылку пользователю
+        # Отправляем ссылку юзеру
         await bot.send_message(
             target_user_id,
-            f"✅ <b>Доступ к ULTIMATE GUIDE открыт!</b>\n\n"
-            f"Вот твой персональный доступ к закрытому каналу:\n\n"
+            f"✅ <b>Старина открыл тебе доступ к ULTIMATE GUIDE!</b>\n\n"
+            f"Жми на ссылку → отправь запрос на вступление → "
+            f"бот автоматически одобрит:\n\n"
             f"👉 {invite_link}\n\n"
-            f"Внутри: гайд, база поставщиков, бонусы.\n\n"
             f"get rich or die tryin' 💀",
             parse_mode="HTML",
             disable_web_page_preview=True
         )
 
         await message.answer(
-            f"✅ Доступ выдан пользователю {target_user_id}\n"
-            f"Ссылка отправлена: {invite_link}",
-            disable_web_page_preview=True
+            f"✅ Готово!\n"
+            f"Юзер {target_user_id} отмечен как купивший.\n"
+            f"Ссылка отправлена — когда нажмёт, бот автоматически одобрит вступление.",
+            parse_mode="HTML"
         )
 
     except Exception as e:
         await message.answer(
             f"❌ Ошибка создания ссылки: {e}\n\n"
-            f"Добавь пользователя {target_user_id} в канал вручную.",
+            f"Юзер {target_user_id} отмечен в БД как купивший.\n"
+            f"Добавь его в канал вручную.",
             parse_mode="HTML"
         )
+
+
+@router.message(Command("revoke"))
+async def cmd_revoke(message: Message, bot: Bot):
+    """Забирает доступ к гайду (кик из канала + сброс в БД)."""
+    if not is_admin(message.from_user.id):
+        return
+
+    parts = message.text.split()
+    if len(parts) != 2:
+        await message.answer("Использование: <code>/revoke USER_ID</code>", parse_mode="HTML")
+        return
+
+    try:
+        target_user_id = int(parts[1])
+    except ValueError:
+        await message.answer("❌ Некорректный ID.", parse_mode="HTML")
+        return
+
+    # Кикаем из канала
+    try:
+        await bot.ban_chat_member(config.PRIVATE_CHANNEL_ID, target_user_id)
+        await bot.unban_chat_member(config.PRIVATE_CHANNEL_ID, target_user_id)
+    except Exception as e:
+        await message.answer(f"⚠️ Не удалось кикнуть из канала: {e}", parse_mode="HTML")
+
+    # Сбрасываем в БД
+    import aiosqlite
+    async with aiosqlite.connect(config.DB_PATH if hasattr(config, 'DB_PATH') else 'data/bot.db') as db_conn:
+        await db_conn.execute(
+            "UPDATE users SET purchased_guide = 0, purchased_at = NULL WHERE user_id = ?",
+            (target_user_id,)
+        )
+        await db_conn.commit()
+
+    await message.answer(f"✅ Доступ у {target_user_id} забран.", parse_mode="HTML")
 
 
 @router.message(Command("user"))
@@ -143,7 +187,7 @@ async def cmd_user_info(message: Message):
         return
     parts = message.text.split()
     if len(parts) != 2:
-        await message.answer("Использование: <code>/user 12345678</code>", parse_mode="HTML")
+        await message.answer("Использование: <code>/user USER_ID</code>", parse_mode="HTML")
         return
     try:
         user_id = int(parts[1])
@@ -172,9 +216,7 @@ async def cmd_broadcast(message: Message, state: FSMContext):
     if not is_admin(message.from_user.id):
         return
     await state.set_state(BroadcastStates.waiting_for_message)
-    await message.answer(
-        "📢 Пришли сообщение для рассылки.\nИли /cancel для отмены."
-    )
+    await message.answer("📢 Пришли сообщение для рассылки.\nИли /cancel для отмены.")
 
 
 @router.message(Command("cancel"))
@@ -190,10 +232,7 @@ async def broadcast_preview(message: Message, state: FSMContext):
     await state.update_data(text=message.html_text)
     await state.set_state(BroadcastStates.waiting_for_confirm)
     user_count = len(await db.get_all_user_ids())
-    await message.answer(
-        f"📢 <b>ПРЕВЬЮ</b> — получателей: <b>{user_count}</b>",
-        parse_mode="HTML"
-    )
+    await message.answer(f"📢 <b>ПРЕВЬЮ</b> — получателей: <b>{user_count}</b>", parse_mode="HTML")
     await message.answer(message.html_text, parse_mode="HTML")
     await message.answer("Напиши <code>ОТПРАВИТЬ</code> или /cancel", parse_mode="HTML")
 
