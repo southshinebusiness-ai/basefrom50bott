@@ -124,11 +124,14 @@ async def check_payment(callback: CallbackQuery, bot: Bot):
         [InlineKeyboardButton(text="🔄 Проверить ещё раз", callback_data="check_payment")],
         [InlineKeyboardButton(text="⬅️ Назад", callback_data="guide_buy")],
     ])
-    await callback.message.edit_text(
-        "⏳ <b>Платёж ещё обрабатывается...</b>\n\n"
-        "Обычно это занимает 10-30 секунд после оплаты.\n"
-        "Попробуй нажать кнопку ещё раз через минуту.\n\n"
-        "Если прошло больше 5 минут — пиши @mmarsellus.",
-        reply_markup=kb,
-        parse_mode="HTML"
-    )
+    try:
+        await callback.message.edit_text(
+            "⏳ <b>Платёж ещё обрабатывается...</b>\n\n"
+            "Обычно это занимает 10-30 секунд после оплаты.\n"
+            "Попробуй нажать кнопку ещё раз через минуту.\n\n"
+            "Если прошло больше 5 минут — пиши @mmarsellus.",
+            reply_markup=kb,
+            parse_mode="HTML"
+        )
+    except Exception:
+        pass  # Сообщение уже такое же — ничего не делаем
