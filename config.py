@@ -29,7 +29,7 @@ class Config:
     YOOMONEY_SECRET: str = os.getenv("YOOMONEY_SECRET", "")  # Секрет для HTTP-уведомлений
 
     # Цены
-    PRICE_ULTIMATE_GUIDE: int = 5990
+    PRICE_ULTIMATE_GUIDE: int = 10
 
     # Ссылки
     PERSONAL_LINK: str = "https://t.me/mmarsellus"
