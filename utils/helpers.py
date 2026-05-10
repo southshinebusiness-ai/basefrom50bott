@@ -126,4 +126,5 @@ def generate_yoomoney_link(amount: int, label: str, wallet: str) -> str:
         "sum": amount,
         "label": label,
     }
-    return f"https://yoomoney.ru/quickpay/confirm?{urlencode(params)}"
+    # Важно: confirm.xml (не просто confirm) триггерит HTTP-уведомления
+    return f"https://yoomoney.ru/quickpay/confirm.xml?{urlencode(params)}"
