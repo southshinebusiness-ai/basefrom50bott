@@ -1,6 +1,6 @@
 """
 Конфигурация бота.
-Все секреты читаются из .env файла, который НЕ попадает в git.
+Все секреты читаются из .env файла / переменных Railway.
 """
 import os
 from dataclasses import dataclass
@@ -14,10 +14,10 @@ class Config:
     # Токен бота от @BotFather
     BOT_TOKEN: str = os.getenv("BOT_TOKEN", "")
 
-    # Telegram ID админа (твой ID)
+    # Telegram ID админа
     ADMIN_ID: int = int(os.getenv("ADMIN_ID", "0"))
 
-    # Username основного канала (без @) для проверки подписки
+    # Username основного канала для проверки подписки
     MAIN_CHANNEL_USERNAME: str = os.getenv("MAIN_CHANNEL_USERNAME", "basefrom50")
 
     # ID закрытого канала с материалами ULTIMATE GUIDE
@@ -25,11 +25,11 @@ class Config:
 
     # YooMoney
     YOOMONEY_WALLET: str = os.getenv("YOOMONEY_WALLET", "4100118793697883")
-    YOOMONEY_TOKEN: str = os.getenv("YOOMONEY_TOKEN", "")
+    YOOMONEY_TOKEN: str = os.getenv("YOOMONEY_TOKEN", "")  # OAuth токен (опционально)
+    YOOMONEY_SECRET: str = os.getenv("YOOMONEY_SECRET", "")  # Секрет для HTTP-уведомлений
 
-    # Цены продуктов в рублях
+    # Цены
     PRICE_ULTIMATE_GUIDE: int = 5990
-    PRICE_BUYOUT_SERVICE: int = 2200
 
     # Ссылки
     PERSONAL_LINK: str = "https://t.me/mmarsellus"
@@ -38,8 +38,11 @@ class Config:
     YOUTUBE_LINK: str = os.getenv("YOUTUBE_LINK", "")
     TIKTOK_LINK: str = os.getenv("TIKTOK_LINK", "")
 
-    # Файл базы данных
+    # База данных
     DB_PATH: str = "data/bot.db"
+
+    # Порт для веб-сервера (Railway задаёт автоматически)
+    PORT: int = int(os.getenv("PORT", "8080"))
 
 
 config = Config()
