@@ -74,7 +74,7 @@ LESSON_TEXTS = {
 
 @router.callback_query(F.data.startswith("lesson_"))
 async def show_lesson(callback: CallbackQuery):
-    """Правка #1: навигация вперёд И назад по урокам."""
+    """Навигация вперёд И назад по урокам."""
     user_id = callback.from_user.id
     lesson_num = int(callback.data.split("_")[1])
 
@@ -85,37 +85,38 @@ async def show_lesson(callback: CallbackQuery):
     await db.update_lesson_progress(user_id, lesson_num)
     await db.log_event(user_id, "view_lesson", {"lesson": lesson_num})
 
-    text = LESSON_TEXTS[lesson_num]
-    # Правка #1: lesson_nav показывает кнопки назад+вперёд
     keyboard = lesson_nav(lesson_num, TOTAL_LESSONS)
-
-    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+    await callback.message.edit_text(
+        LESSON_TEXTS[lesson_num],
+        reply_markup=keyboard,
+        parse_mode="HTML"
+    )
     await callback.answer()
 
 
 @router.callback_query(F.data == "get_pdfs")
 async def send_pdfs(callback: CallbackQuery):
-    """
-    Правка #4: удаляем сообщение с кнопкой "Получить PDF"
-    после того как PDF отправлен.
-    """
+    """Отправляет PDF после прохождения курса."""
     user_id = callback.from_user.id
     await db.log_event(user_id, "received_pdfs")
 
-    # Правка #4: удаляем исходное сообщение с кнопкой
+    # Удаляем сообщение с кнопкой
     try:
         await callback.message.delete()
     except Exception:
         pass
 
-    pdf_dir = Path("content/pdfs")
-    suppliers_pdf = pdf_dir / "suppliers_rf.pdf"
-    course_pdf = pdf_dir / "course_full.pdf"
+    # Отправляем PDF с базой поставщиков
+    pdf_path = Path("content/pdfs/basefrom50_start_rf.pdf")
 
-    if suppliers_pdf.exists():
+    if pdf_path.exists():
         await callback.message.answer_document(
-            FSInputFile(suppliers_pdf),
-            caption="📥 База РФ поставщиков"
+            FSInputFile(pdf_path),
+            caption=(
+                "📥 <b>База поставщиков РФ — Легкий старт</b>\n\n"
+                "Сохрани документ себе — все ссылки кликабельные."
+            ),
+            parse_mode="HTML"
         )
     else:
         await callback.message.answer(
@@ -124,18 +125,12 @@ async def send_pdfs(callback: CallbackQuery):
             parse_mode="HTML"
         )
 
-    if course_pdf.exists():
-        await callback.message.answer_document(
-            FSInputFile(course_pdf),
-            caption="📥 Полный мини-курс одним файлом"
-        )
-
-    # Финальное сообщение с кнопкой перехода к гайду
+    # Финальное сообщение
     from utils.keyboards import finish_course
-    fin_msg = await callback.message.answer(
+    await callback.message.answer(
         texts.COURSE_FINISH,
         reply_markup=finish_course(),
         parse_mode="HTML"
     )
 
-    await callback.answer("PDF отправлены ✅")
+    await callback.answer("PDF отправлен ✅")
