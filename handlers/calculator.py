@@ -171,16 +171,32 @@ async def calc_compute(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == "calc_manual")
 async def calc_manual(callback: CallbackQuery, state: FSMContext):
     await state.set_state(CalcStates.entering_weight)
+    # Сохраняем ID промпта чтобы удалить при вводе
+    await state.update_data(
+        prompt_msg_id=callback.message.message_id,
+        prompt_chat_id=callback.message.chat.id
+    )
     await callback.message.edit_text(texts.CALC_MANUAL_WEIGHT, parse_mode="HTML")
     await callback.answer()
 
 
 @router.message(CalcStates.entering_weight)
 async def manual_weight_received(message: Message, state: FSMContext):
+    # Удаляем сообщение юзера
     try:
         await message.delete()
     except Exception:
         pass
+    # Удаляем промпт бота "Введи вес"
+    data = await state.get_data()
+    prompt_id   = data.get("prompt_msg_id")
+    prompt_chat = data.get("prompt_chat_id")
+    if prompt_id and prompt_chat:
+        try:
+            await message.bot.delete_message(prompt_chat, prompt_id)
+        except Exception:
+            pass
+
     try:
         weight = int(message.text.strip())
         if weight <= 0 or weight > 50000:
@@ -188,17 +204,37 @@ async def manual_weight_received(message: Message, state: FSMContext):
     except (ValueError, AttributeError):
         await message.answer("❌ Введи вес в граммах. Например <code>600</code>", parse_mode="HTML")
         return
-    await state.update_data(manual_weight=weight, delivery_mode="manual")
+
+    # Отправляем промпт цены и сохраняем его ID
+    price_prompt = await message.answer(
+        texts.CALC_MANUAL_PRICE.format(weight=weight), parse_mode="HTML"
+    )
+    await state.update_data(
+        manual_weight=weight,
+        delivery_mode="manual",
+        prompt_msg_id=price_prompt.message_id,
+        prompt_chat_id=message.chat.id
+    )
     await state.set_state(CalcStates.entering_manual_price)
-    await message.answer(texts.CALC_MANUAL_PRICE.format(weight=weight), parse_mode="HTML")
 
 
 @router.message(CalcStates.entering_manual_price)
 async def manual_price_received(message: Message, state: FSMContext):
+    # Удаляем сообщение юзера
     try:
         await message.delete()
     except Exception:
         pass
+    # Удаляем промпт бота "Введи цену"
+    data = await state.get_data()
+    prompt_id   = data.get("prompt_msg_id")
+    prompt_chat = data.get("prompt_chat_id")
+    if prompt_id and prompt_chat:
+        try:
+            await message.bot.delete_message(prompt_chat, prompt_id)
+        except Exception:
+            pass
+
     try:
         price = float(message.text.strip().replace(",", "."))
         if price <= 0 or price > 100000:
@@ -206,6 +242,7 @@ async def manual_price_received(message: Message, state: FSMContext):
     except (ValueError, AttributeError):
         await message.answer("❌ Введи цену в юанях. Например <code>98</code>", parse_mode="HTML")
         return
+
     await state.update_data(manual_price=price, delivery_mode="manual")
     await state.set_state(CalcStates.choosing_delivery)
     await message.answer(
