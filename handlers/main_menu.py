@@ -16,14 +16,16 @@ BANNER = Path("content/images/banner_menu_final.png")
 
 
 async def _send_menu(bot: Bot, chat_id: int, state: FSMContext):
-    """Удаляет старый баннер, шлёт новый + меню."""
+    """Удаляет все баннеры (menu, calc, buyout), шлёт новый + меню."""
     data = await state.get_data()
-    old_banner = data.get("banner_msg_id")
-    if old_banner:
-        try:
-            await bot.delete_message(chat_id, old_banner)
-        except Exception:
-            pass
+    # Удаляем все возможные баннеры из разных разделов
+    for key in ("banner_msg_id", "calc_banner_id"):
+        bid = data.get(key)
+        if bid:
+            try:
+                await bot.delete_message(chat_id, bid)
+            except Exception:
+                pass
 
     banner_id = None
     if BANNER.exists():
