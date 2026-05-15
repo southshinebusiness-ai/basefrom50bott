@@ -172,13 +172,31 @@ async def show_lesson(callback: CallbackQuery, bot: Bot, state: FSMContext):
     await delete_old_messages(bot, chat_id, state, msg_id)
     await send_banner(bot, chat_id, state, lesson_num)
 
-    # Отправляем текст — всё inline, никаких внешних зависимостей
-    await bot.send_message(
-        chat_id,
-        LESSON_TEXTS[lesson_num],
-        reply_markup=kb_lesson(lesson_num),
-        parse_mode="HTML"
-    )
+    try:
+        await bot.send_message(
+            chat_id,
+            LESSON_TEXTS[lesson_num],
+            reply_markup=kb_lesson(lesson_num),
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        try:
+            await bot.send_message(
+                chat_id,
+                LESSON_TEXTS[lesson_num],
+                reply_markup=kb_lesson(lesson_num),
+            )
+        except Exception:
+            await bot.send_message(chat_id, f"Ошибка загрузки урока {lesson_num}. Пиши @mmarsellus")
+        from config import config
+        try:
+            await bot.send_message(
+                config.ADMIN_ID,
+                f"❌ Ошибка урок {lesson_num}:\n{str(e)[:500]}",
+            )
+        except Exception:
+            pass
+
     await callback.answer()
 
 
