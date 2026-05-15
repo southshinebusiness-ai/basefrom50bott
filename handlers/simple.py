@@ -20,14 +20,15 @@ async def show_buyout(callback: CallbackQuery, bot: Bot, state: FSMContext):
     chat_id = callback.message.chat.id
     await db.log_event(callback.from_user.id, "view_buyout")
 
-    # Удаляем старый баннер и текущее сообщение
+    # Удаляем все старые баннеры
     data = await state.get_data()
-    old_banner = data.get("banner_msg_id")
-    if old_banner:
-        try:
-            await bot.delete_message(chat_id, old_banner)
-        except Exception:
-            pass
+    for key in ("banner_msg_id", "calc_banner_id"):
+        bid = data.get(key)
+        if bid:
+            try:
+                await bot.delete_message(chat_id, bid)
+            except Exception:
+                pass
     try:
         await bot.delete_message(chat_id, callback.message.message_id)
     except Exception:
