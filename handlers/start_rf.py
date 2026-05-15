@@ -1,10 +1,9 @@
 """
 Раздел "Старт с РФ" — мини-курс с баннерами и лид-магнитом.
-Фиксы: удаление фото при переходе, блокер на уроке 5.
 """
 from pathlib import Path
 from aiogram import Router, F, Bot
-from aiogram.types import CallbackQuery, FSInputFile, Message
+from aiogram.types import CallbackQuery, FSInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
@@ -42,56 +41,60 @@ class CourseState(StatesGroup):
     viewing = State()
 
 
-async def delete_previous_messages(callback: CallbackQuery, state: FSMContext):
-    """Удаляет текстовое сообщение и предыдущее фото (если было)."""
+async def delete_old_messages(bot: Bot, chat_id: int, state: FSMContext, text_msg_id: int):
+    """Удаляет текстовое сообщение и сохранённое фото."""
     data = await state.get_data()
 
-    # Удаляем баннер предыдущего урока
+    # Удаляем предыдущий баннер
     prev_banner_id = data.get("banner_msg_id")
     if prev_banner_id:
         try:
-            await callback.bot.delete_message(
-                callback.message.chat.id, prev_banner_id
-            )
+            await bot.delete_message(chat_id, prev_banner_id)
         except Exception:
             pass
 
-    # Удаляем текстовое сообщение с кнопками
+    # Удаляем текстовое сообщение
     try:
-        await callback.message.delete()
+        await bot.delete_message(chat_id, text_msg_id)
     except Exception:
         pass
 
 
-async def send_banner(callback: CallbackQuery, state: FSMContext, lesson_num: int):
-    """Отправляет баннер и сохраняет его ID в state."""
+async def send_lesson(bot: Bot, chat_id: int, state: FSMContext, lesson_num: int):
+    """Отправляет баннер + текст урока. chat_id сохраняется заранее."""
+
+    # Баннер
     banner_file = LESSON_BANNERS.get(lesson_num)
-    if not banner_file:
-        await state.update_data(banner_msg_id=None)
-        return
+    if banner_file:
+        banner_path = IMAGES_DIR / banner_file
+        if banner_path.exists():
+            try:
+                msg = await bot.send_photo(chat_id, FSInputFile(banner_path))
+                await state.update_data(banner_msg_id=msg.message_id)
+            except Exception:
+                await state.update_data(banner_msg_id=None)
+        else:
+            await state.update_data(banner_msg_id=None)
 
-    banner_path = IMAGES_DIR / banner_file
-    if not banner_path.exists():
-        await state.update_data(banner_msg_id=None)
-        return
-
-    try:
-        msg = await callback.message.answer_photo(FSInputFile(banner_path))
-        await state.update_data(banner_msg_id=msg.message_id)
-    except Exception:
-        await state.update_data(banner_msg_id=None)
+    # Текст с кнопками — через bot.send_message напрямую
+    await bot.send_message(
+        chat_id,
+        LESSON_TEXTS[lesson_num],
+        reply_markup=lesson_nav(lesson_num, TOTAL_LESSONS),
+        parse_mode="HTML"
+    )
 
 
 @router.callback_query(F.data == "start_rf")
 async def show_start_rf(callback: CallbackQuery, bot: Bot, state: FSMContext):
     user_id = callback.from_user.id
+    chat_id = callback.message.chat.id
     await db.log_event(user_id, "open_start_rf")
 
     is_subbed = await is_subscribed_to_channel(bot, user_id)
     await db.set_subscription_status(user_id, is_subbed)
 
     if not is_subbed:
-        from config import config
         await callback.message.edit_text(
             texts.NOT_SUBSCRIBED,
             reply_markup=check_subscription(),
@@ -100,11 +103,20 @@ async def show_start_rf(callback: CallbackQuery, bot: Bot, state: FSMContext):
         await callback.answer()
         return
 
-    await delete_previous_messages(callback, state)
+    await delete_old_messages(bot, chat_id, state, callback.message.message_id)
     await state.set_state(CourseState.viewing)
 
-    await send_banner(callback, state, 0)
-    await callback.message.answer(
+    # Баннер интро
+    banner_path = IMAGES_DIR / LESSON_BANNERS[0]
+    if banner_path.exists():
+        try:
+            msg = await bot.send_photo(chat_id, FSInputFile(banner_path))
+            await state.update_data(banner_msg_id=msg.message_id)
+        except Exception:
+            await state.update_data(banner_msg_id=None)
+
+    await bot.send_message(
+        chat_id,
         texts.START_RF_INTRO,
         reply_markup=start_course(),
         parse_mode="HTML"
@@ -114,15 +126,25 @@ async def show_start_rf(callback: CallbackQuery, bot: Bot, state: FSMContext):
 
 @router.callback_query(F.data == "check_sub")
 async def recheck_subscription(callback: CallbackQuery, bot: Bot, state: FSMContext):
-    user_id   = callback.from_user.id
+    user_id = callback.from_user.id
+    chat_id = callback.message.chat.id
     is_subbed = await is_subscribed_to_channel(bot, user_id)
     await db.set_subscription_status(user_id, is_subbed)
 
     if is_subbed:
         await callback.answer(texts.SUBSCRIPTION_CONFIRMED, show_alert=True)
-        await delete_previous_messages(callback, state)
-        await send_banner(callback, state, 0)
-        await callback.message.answer(
+        await delete_old_messages(bot, chat_id, state, callback.message.message_id)
+
+        banner_path = IMAGES_DIR / LESSON_BANNERS[0]
+        if banner_path.exists():
+            try:
+                msg = await bot.send_photo(chat_id, FSInputFile(banner_path))
+                await state.update_data(banner_msg_id=msg.message_id)
+            except Exception:
+                pass
+
+        await bot.send_message(
+            chat_id,
             texts.START_RF_INTRO,
             reply_markup=start_course(),
             parse_mode="HTML"
@@ -135,9 +157,11 @@ async def recheck_subscription(callback: CallbackQuery, bot: Bot, state: FSMCont
 
 
 @router.callback_query(F.data.startswith("lesson_"))
-async def show_lesson(callback: CallbackQuery, state: FSMContext):
-    """Переход между уроками — удаляет старые сообщения, шлёт баннер + текст."""
+async def show_lesson(callback: CallbackQuery, bot: Bot, state: FSMContext):
+    """Сохраняем chat_id ДО удаления, потом шлём через bot.send_message напрямую."""
     user_id    = callback.from_user.id
+    chat_id    = callback.message.chat.id          # ← сохраняем до удаления
+    msg_id     = callback.message.message_id
     lesson_num = int(callback.data.split("_")[1])
 
     if lesson_num not in LESSON_TEXTS:
@@ -147,41 +171,29 @@ async def show_lesson(callback: CallbackQuery, state: FSMContext):
     await db.update_lesson_progress(user_id, lesson_num)
     await db.log_event(user_id, "view_lesson", {"lesson": lesson_num})
 
-    # Удаляем фото и текст предыдущего урока
-    await delete_previous_messages(callback, state)
+    # Удаляем старые сообщения
+    await delete_old_messages(bot, chat_id, state, msg_id)
 
-    # Баннер нового урока
-    await send_banner(callback, state, lesson_num)
-
-    # Текст с кнопками
-    try:
-        await callback.message.answer(
-            LESSON_TEXTS[lesson_num],
-            reply_markup=lesson_nav(lesson_num, TOTAL_LESSONS),
-            parse_mode="HTML"
-        )
-    except Exception as e:
-        await db.log_event(user_id, "lesson_send_error", {"lesson": lesson_num, "error": str(e)})
-        await callback.message.answer(
-            LESSON_TEXTS[lesson_num],
-            reply_markup=lesson_nav(lesson_num, TOTAL_LESSONS),
-        )
+    # Отправляем новый урок
+    await send_lesson(bot, chat_id, state, lesson_num)
 
     await callback.answer()
 
 
 @router.callback_query(F.data == "get_pdfs")
-async def send_pdfs(callback: CallbackQuery, state: FSMContext):
-    """Отправляет PDF после прохождения курса."""
+async def send_pdfs(callback: CallbackQuery, bot: Bot, state: FSMContext):
     user_id = callback.from_user.id
+    chat_id = callback.message.chat.id
+    msg_id  = callback.message.message_id
     await db.log_event(user_id, "received_pdfs")
 
-    await delete_previous_messages(callback, state)
+    await delete_old_messages(bot, chat_id, state, msg_id)
     await state.clear()
 
     pdf_path = PDFS_DIR / "basefrom50_start_rf.pdf"
     if pdf_path.exists():
-        await callback.message.answer_document(
+        await bot.send_document(
+            chat_id,
             FSInputFile(pdf_path),
             caption=(
                 "📥 <b>База поставщиков РФ — Легкий старт</b>\n\n"
@@ -190,13 +202,15 @@ async def send_pdfs(callback: CallbackQuery, state: FSMContext):
             parse_mode="HTML"
         )
     else:
-        await callback.message.answer(
+        await bot.send_message(
+            chat_id,
             "📥 <b>База РФ поставщиков</b> скоро будет загружена.\n"
             "Пиши @mmarsellus если нужна срочно.",
             parse_mode="HTML"
         )
 
-    await callback.message.answer(
+    await bot.send_message(
+        chat_id,
         texts.COURSE_FINISH,
         reply_markup=finish_course(),
         parse_mode="HTML"
