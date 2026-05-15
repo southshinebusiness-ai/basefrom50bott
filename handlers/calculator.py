@@ -57,17 +57,20 @@ async def _delete_calc_banner(bot: Bot, chat_id: int, state: FSMContext):
 @router.callback_query(F.data == "calc")
 async def show_calc(callback: CallbackQuery, state: FSMContext, bot: Bot):
     chat_id = callback.message.chat.id
+
+    # Сначала читаем данные, ПОТОМ чистим state
+    data = await state.get_data()
     await state.clear()
     await db.log_event(callback.from_user.id, "open_calculator")
 
-    # Удаляем старый баннер любого раздела
-    data = await state.get_data()
-    old = data.get("banner_msg_id")
-    if old:
-        try:
-            await bot.delete_message(chat_id, old)
-        except Exception:
-            pass
+    # Удаляем все старые баннеры
+    for key in ("banner_msg_id", "calc_banner_id"):
+        bid = data.get(key)
+        if bid:
+            try:
+                await bot.delete_message(chat_id, bid)
+            except Exception:
+                pass
 
     try:
         await bot.delete_message(chat_id, callback.message.message_id)
