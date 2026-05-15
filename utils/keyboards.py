@@ -166,7 +166,7 @@ def payment_buttons(pay_url: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=texts.BTN_PAY, url=pay_url)],
         [InlineKeyboardButton(text=texts.BTN_PAYMENT_DONE, callback_data="check_payment")],
-        [InlineKeyboardButton(text=texts.BTN_BACK, callback_data="guide_buy")],
+        [InlineKeyboardButton(text=texts.BTN_BACK, callback_data="guide")],  # назад к описанию гайда
     ])
 
 
