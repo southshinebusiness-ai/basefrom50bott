@@ -32,9 +32,31 @@ async def create_secure_invite(bot: Bot, user_id: int) -> str | None:
 
 
 @router.callback_query(F.data == "guide")
-async def show_guide(callback: CallbackQuery):
+async def show_guide(callback: CallbackQuery, bot: Bot, state: FSMContext):
+    chat_id = callback.message.chat.id
     await db.log_event(callback.from_user.id, "view_guide")
-    await callback.message.edit_text(
+
+    # Удаляем баннер любого раздела
+    try:
+        data = await state.get_data()
+        for key in ("banner_msg_id", "calc_banner_id"):
+            bid = data.get(key)
+            if bid:
+                try:
+                    await bot.delete_message(chat_id, bid)
+                except Exception:
+                    pass
+        await state.update_data(banner_msg_id=None, calc_banner_id=None)
+    except Exception:
+        pass
+
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+
+    await bot.send_message(
+        chat_id,
         texts.GUIDE_DESCRIPTION,
         reply_markup=guide_menu(),
         parse_mode="HTML"
