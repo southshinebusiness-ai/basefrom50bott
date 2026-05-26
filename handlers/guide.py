@@ -55,6 +55,17 @@ async def show_guide(callback: CallbackQuery, bot: Bot, state: FSMContext):
     except Exception:
         pass
 
+    # Баннер ULTIMATE GUIDE
+    from pathlib import Path
+    from aiogram.types import FSInputFile
+    banner = Path("content/images/banner_guide_final.png")
+    if banner.exists():
+        try:
+            msg = await bot.send_photo(chat_id, FSInputFile(banner))
+            await state.update_data(banner_msg_id=msg.message_id)
+        except Exception:
+            pass
+
     await bot.send_message(
         chat_id,
         texts.GUIDE_DESCRIPTION,
