@@ -210,6 +210,14 @@ async def send_pdfs(callback: CallbackQuery, bot: Bot, state: FSMContext):
     await delete_old_messages(bot, chat_id, state, msg_id)
     await state.clear()
 
+    # Баннер финала курса
+    banner = IMAGES_DIR / "banner_finish_final.png"
+    if banner.exists():
+        try:
+            await bot.send_photo(chat_id, FSInputFile(banner))
+        except Exception:
+            pass
+
     pdf_path = PDFS_DIR / "basefrom50_start_rf.pdf"
     if pdf_path.exists():
         await bot.send_document(
