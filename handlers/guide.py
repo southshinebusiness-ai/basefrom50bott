@@ -5,7 +5,9 @@
 """
 from datetime import datetime, timedelta
 from aiogram import Router, F, Bot
-from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
+from aiogram.fsm.context import FSMContext
+from pathlib import Path
 
 from db import database as db
 from utils.keyboards import guide_menu, payment_buttons, back_to_main, main_menu
@@ -56,8 +58,6 @@ async def show_guide(callback: CallbackQuery, bot: Bot, state: FSMContext):
         pass
 
     # Баннер ULTIMATE GUIDE
-    from pathlib import Path
-    from aiogram.types import FSInputFile
     banner = Path("content/images/banner_guide_final.png")
     if banner.exists():
         try:
