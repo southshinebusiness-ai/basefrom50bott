@@ -9,6 +9,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 from db import database as db
+from config import config
 from utils.keyboards import (
     calc_mode_choice, calc_categories, calc_result_buttons
 )
@@ -162,7 +163,7 @@ async def calc_compute(callback: CallbackQuery, state: FSMContext, bot: Bot):
     if not cart:
         await callback.answer("Корзина пуста!", show_alert=True)
         return
-    yuan_rate = await db.get_yuan_rate()
+    yuan_rate = config.YUAN_RATE
     result    = calculate_cart_total(cart, yuan_rate)
     text      = texts.CALC_RESULT_CART.format(
         total_product_cost=f"{result['total_product_cost']:,}".replace(",", " "),
@@ -263,16 +264,13 @@ async def manual_price_received(message: Message, state: FSMContext):
     # Считаем сразу — без выбора доставки
     data    = await state.get_data()
     weight  = data.get("manual_weight")
-    yuan_rate = await db.get_yuan_rate()
+    yuan_rate = config.YUAN_RATE
     result  = calculate_price(price, weight, yuan_rate)
     text    = texts.CALC_RESULT_SINGLE.format(
         product_cost=f"{result['product_cost']:,}".replace(",", " "),
-        price_yuan=int(price) if price == int(price) else price,
-        rate=result["rate"],
-        cargo_delivery=result["cargo_delivery"],
+        weight_kg=result["weight_kg"],
         commission=f"{result['commission']:,}".replace(",", " "),
         shipping=f"{result['shipping']:,}".replace(",", " "),
-        weight_kg=result["weight_kg"],
         dollar_rate=result["dollar_rate"],
         total=f"{result['total']:,}".replace(",", " "),
     )
