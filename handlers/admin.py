@@ -1,11 +1,22 @@
 """
-Админ-команды. /grant теперь использует join_request систему.
+Админ-команды.
+/stats    — полная статистика
+/funnel   — воронка конверсии
+/today    — сводка за сегодня
+/broadcast — рассылка (текст или фото+текст)
+/grant    — выдать доступ вручную
+/revoke   — забрать доступ
+/user     — инфо о юзере
+/set_rate — курс юаня
 """
 import asyncio
 from datetime import datetime, timedelta
 from aiogram import Router, F, Bot
 from aiogram.filters import Command
-from aiogram.types import Message
+from aiogram.types import (
+    Message, CallbackQuery,
+    InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
+)
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
@@ -19,168 +30,342 @@ def is_admin(user_id: int) -> bool:
     return user_id == config.ADMIN_ID
 
 
+# ── FSM ───────────────────────────────────────────────────────
 class BroadcastStates(StatesGroup):
     waiting_for_message = State()
     waiting_for_confirm = State()
 
 
+# ── ВСПОМОГАТЕЛЬНЫЕ ───────────────────────────────────────────
+def pct(part: int, total: int) -> str:
+    if not total:
+        return "0%"
+    return f"{part / total * 100:.1f}%"
+
+def fmt(n: int) -> str:
+    return f"{n:,}".replace(",", " ")
+
+
+async def get_full_stats() -> dict:
+    """Собирает расширенную статистику из БД."""
+    import aiosqlite
+    db_path = getattr(config, 'DB_PATH', 'data/bot.db')
+
+    async with aiosqlite.connect(db_path) as conn:
+        conn.row_factory = aiosqlite.Row
+
+        now   = datetime.now()
+        today = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        week  = (now - timedelta(days=7)).isoformat()
+        month = (now - timedelta(days=30)).isoformat()
+
+        async def one(sql, *args):
+            cur = await conn.execute(sql, args)
+            row = await cur.fetchone()
+            return row[0] if row else 0
+
+        total       = await one("SELECT COUNT(*) FROM users")
+        new_today   = await one("SELECT COUNT(*) FROM users WHERE joined_at >= ?", today)
+        new_week    = await one("SELECT COUNT(*) FROM users WHERE joined_at >= ?", week)
+        new_month   = await one("SELECT COUNT(*) FROM users WHERE joined_at >= ?", month)
+
+        # Воронка курса
+        started     = await one("SELECT COUNT(*) FROM users WHERE lesson_progress >= 1")
+        completed   = await one("SELECT COUNT(*) FROM users WHERE lesson_progress >= 5 OR course_completed = 1")
+        got_pdf     = await one("SELECT COUNT(DISTINCT user_id) FROM events WHERE event_type='received_pdfs'")
+
+        # Воронка гайда
+        opened_guide  = await one("SELECT COUNT(DISTINCT user_id) FROM events WHERE event_type='view_guide'")
+        payment_init  = await one("SELECT COUNT(DISTINCT user_id) FROM events WHERE event_type='payment_initiated'")
+        purchased     = await one("SELECT COUNT(*) FROM users WHERE purchased_guide = 1")
+
+        # Выручка
+        rev_total = await one("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status='success'")
+        rev_today = await one("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status='success' AND created_at >= ?", today)
+        rev_week  = await one("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status='success' AND created_at >= ?", week)
+        rev_month = await one("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status='success' AND created_at >= ?", month)
+
+        # Активность сегодня
+        active_today = await one("SELECT COUNT(DISTINCT user_id) FROM events WHERE created_at >= ?", today)
+
+    return {
+        "total": total, "new_today": new_today,
+        "new_week": new_week, "new_month": new_month,
+        "started": started, "completed": completed, "got_pdf": got_pdf,
+        "opened_guide": opened_guide, "payment_init": payment_init, "purchased": purchased,
+        "rev_total": rev_total, "rev_today": rev_today,
+        "rev_week": rev_week, "rev_month": rev_month,
+        "active_today": active_today,
+    }
+
+
+# ── /stats ────────────────────────────────────────────────────
 @router.message(Command("stats"))
 async def cmd_stats(message: Message):
     if not is_admin(message.from_user.id):
         return
-    stats = await db.get_stats()
-    rate = await db.get_yuan_rate()
+
+    s = await get_full_stats()
+
     text = (
-        f"📊 <b>СТАТИСТИКА БОТА</b>\n\n"
-        f"👥 Всего юзеров: <b>{stats['total_users']}</b>\n"
-        f"📈 Новых за день: <b>{stats['new_today']}</b>\n"
-        f"📅 Новых за неделю: <b>{stats['new_week']}</b>\n\n"
-        f"🎓 Прошли мини-курс: <b>{stats['course_completed']}</b>\n"
-        f"💎 Купили гайд: <b>{stats['purchased_guide']}</b>\n\n"
-        f"💰 Общая выручка: <b>{stats['total_revenue']:,}₽</b>\n\n"
-        f"📐 Курс юаня: <b>{rate}₽</b>\n\n"
-        f"<i>Команды:\n"
-        f"/set_rate 13.6 — курс юаня\n"
-        f"/grant USER_ID — выдать доступ к гайду\n"
-        f"/revoke USER_ID — забрать доступ\n"
-        f"/user USER_ID — инфа о юзере\n"
-        f"/broadcast — рассылка</i>"
+        "📊 <b>СТАТИСТИКА БОТА</b>\n\n"
+
+        "👥 <b>Пользователи</b>\n"
+        f"  Всего: <b>{fmt(s['total'])}</b>\n"
+        f"  Сегодня пришли: <b>+{s['new_today']}</b>\n"
+        f"  За неделю: <b>+{s['new_week']}</b>\n"
+        f"  За месяц: <b>+{s['new_month']}</b>\n"
+        f"  Активны сегодня: <b>{s['active_today']}</b>\n\n"
+
+        "🎓 <b>Бесплатный курс</b>\n"
+        f"  Начали: <b>{s['started']}</b> ({pct(s['started'], s['total'])})\n"
+        f"  Прошли: <b>{s['completed']}</b> ({pct(s['completed'], s['total'])})\n"
+        f"  Получили PDF: <b>{s['got_pdf']}</b> ({pct(s['got_pdf'], s['total'])})\n\n"
+
+        "💎 <b>ULTIMATE GUIDE</b>\n"
+        f"  Открыли раздел: <b>{s['opened_guide']}</b>\n"
+        f"  Начали оплату: <b>{s['payment_init']}</b>\n"
+        f"  Купили: <b>{s['purchased']}</b> ({pct(s['purchased'], s['total'])})\n"
+        f"  Конверсия в продажу: <b>{pct(s['purchased'], s['opened_guide'])}</b>\n\n"
+
+        "💰 <b>Выручка</b>\n"
+        f"  Сегодня: <b>{fmt(int(s['rev_today']))}₽</b>\n"
+        f"  Неделя: <b>{fmt(int(s['rev_week']))}₽</b>\n"
+        f"  Месяц: <b>{fmt(int(s['rev_month']))}₽</b>\n"
+        f"  Всего: <b>{fmt(int(s['rev_total']))}₽</b>\n\n"
+
+        "<i>/funnel — воронка  /today — сводка\n"
+        "/broadcast — рассылка\n"
+        "/grant /revoke /user ID</i>"
     )
     await message.answer(text, parse_mode="HTML")
 
 
-@router.message(Command("set_rate"))
-async def cmd_set_rate(message: Message):
+# ── /funnel ───────────────────────────────────────────────────
+@router.message(Command("funnel"))
+async def cmd_funnel(message: Message):
     if not is_admin(message.from_user.id):
         return
-    parts = message.text.split()
-    if len(parts) != 2:
-        await message.answer("Использование: <code>/set_rate 13.6</code>", parse_mode="HTML")
-        return
-    try:
-        rate = float(parts[1].replace(",", "."))
-        if rate <= 0 or rate > 100:
-            raise ValueError()
-    except ValueError:
-        await message.answer("❌ Некорректный курс.", parse_mode="HTML")
-        return
-    await db.set_setting("yuan_rate", str(rate))
-    await message.answer(f"✅ Курс юаня: <b>{rate}₽</b>", parse_mode="HTML")
+
+    s = await get_full_stats()
+    t = s['total'] or 1
+
+    def bar(n, total):
+        filled = int(n / total * 10) if total else 0
+        return "█" * filled + "░" * (10 - filled)
+
+    text = (
+        "🔽 <b>ВОРОНКА КОНВЕРСИИ</b>\n\n"
+        f"Пришли в бот\n"
+        f"<code>{bar(t,t)}</code> {fmt(t)} (100%)\n\n"
+        f"Начали курс\n"
+        f"<code>{bar(s['started'],t)}</code> {fmt(s['started'])} ({pct(s['started'],t)})\n\n"
+        f"Прошли курс\n"
+        f"<code>{bar(s['completed'],t)}</code> {fmt(s['completed'])} ({pct(s['completed'],t)})\n\n"
+        f"Открыли GUIDE\n"
+        f"<code>{bar(s['opened_guide'],t)}</code> {fmt(s['opened_guide'])} ({pct(s['opened_guide'],t)})\n\n"
+        f"Начали оплату\n"
+        f"<code>{bar(s['payment_init'],t)}</code> {fmt(s['payment_init'])} ({pct(s['payment_init'],t)})\n\n"
+        f"Купили 💎\n"
+        f"<code>{bar(s['purchased'],t)}</code> {fmt(s['purchased'])} ({pct(s['purchased'],t)})\n\n"
+        f"Конверсия (все→покупка): <b>{pct(s['purchased'],t)}</b>\n"
+        f"Конверсия (гайд→покупка): <b>{pct(s['purchased'],s['opened_guide'])}</b>\n"
+        f"Конверсия (курс→покупка): <b>{pct(s['purchased'],s['completed'])}</b>"
+    )
+    await message.answer(text, parse_mode="HTML")
 
 
+# ── /today ────────────────────────────────────────────────────
+@router.message(Command("today"))
+async def cmd_today(message: Message):
+    if not is_admin(message.from_user.id):
+        return
+
+    s = await get_full_stats()
+    text = (
+        f"📅 <b>СЕГОДНЯ</b>\n\n"
+        f"👤 Новых пользователей: <b>+{s['new_today']}</b>\n"
+        f"🔥 Активных: <b>{s['active_today']}</b>\n"
+        f"💰 Выручка: <b>{fmt(int(s['rev_today']))}₽</b>\n"
+        f"💎 Продаж гайда: <b>{s['purchased']}</b> всего\n"
+    )
+    await message.answer(text, parse_mode="HTML")
+
+
+# ── /broadcast ────────────────────────────────────────────────
+@router.message(Command("broadcast"))
+async def cmd_broadcast(message: Message, state: FSMContext):
+    if not is_admin(message.from_user.id):
+        return
+    await state.set_state(BroadcastStates.waiting_for_message)
+    await message.answer(
+        "📢 <b>РАССЫЛКА</b>\n\n"
+        "Отправь сообщение для рассылки.\n"
+        "Поддерживается: текст, фото + подпись.\n\n"
+        "/cancel — отмена",
+        parse_mode="HTML"
+    )
+
+
+@router.message(Command("cancel"))
+async def cmd_cancel(message: Message, state: FSMContext):
+    if not is_admin(message.from_user.id):
+        return
+    await state.clear()
+    await message.answer("❌ Отменено")
+
+
+@router.message(BroadcastStates.waiting_for_message)
+async def broadcast_preview(message: Message, state: FSMContext):
+    user_count = len(await db.get_all_user_ids())
+
+    # Сохраняем тип и данные сообщения
+    if message.photo:
+        photo_id = message.photo[-1].file_id
+        caption  = message.html_text or ""
+        await state.update_data(msg_type="photo", photo_id=photo_id, caption=caption)
+        preview_text = f"📸 Фото + текст\nПолучателей: <b>{user_count}</b>"
+    elif message.text:
+        await state.update_data(msg_type="text", text=message.html_text)
+        preview_text = f"📝 Текст\nПолучателей: <b>{user_count}</b>"
+    else:
+        await message.answer("❌ Поддерживаются только текст и фото. Попробуй ещё раз.")
+        return
+
+    await state.set_state(BroadcastStates.waiting_for_confirm)
+
+    # Показываем превью
+    await message.answer(f"👁 <b>ПРЕВЬЮ:</b> {preview_text}", parse_mode="HTML")
+    if message.photo:
+        await message.answer_photo(message.photo[-1].file_id, caption=message.caption)
+    else:
+        await message.answer(message.html_text, parse_mode="HTML")
+
+    # Кнопки подтверждения
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text=f"✅ Отправить ({user_count} чел.)", callback_data="broadcast_yes"),
+            InlineKeyboardButton(text="❌ Отмена", callback_data="broadcast_no"),
+        ]
+    ])
+    await message.answer("Подтверди рассылку:", reply_markup=kb)
+
+
+@router.callback_query(BroadcastStates.waiting_for_confirm, F.data == "broadcast_no")
+async def broadcast_cancel_cb(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.message.edit_text("❌ Рассылка отменена")
+    await callback.answer()
+
+
+@router.callback_query(BroadcastStates.waiting_for_confirm, F.data == "broadcast_yes")
+async def broadcast_send(callback: CallbackQuery, state: FSMContext, bot: Bot):
+    data     = await state.get_data()
+    msg_type = data.get("msg_type")
+    await state.clear()
+
+    user_ids   = await db.get_all_user_ids()
+    sent = failed = 0
+    await callback.message.edit_text(f"⏳ Рассылка... 0/{len(user_ids)}")
+    await callback.answer()
+
+    for i, uid in enumerate(user_ids, 1):
+        try:
+            if msg_type == "photo":
+                await bot.send_photo(uid, data["photo_id"], caption=data.get("caption") or None, parse_mode="HTML")
+            else:
+                await bot.send_message(uid, data["text"], parse_mode="HTML")
+            sent += 1
+        except Exception:
+            failed += 1
+        if i % 25 == 0:
+            await asyncio.sleep(1)
+            try:
+                await callback.message.edit_text(f"⏳ Рассылка... {i}/{len(user_ids)}")
+            except Exception:
+                pass
+
+    await callback.message.answer(
+        f"✅ <b>Рассылка завершена</b>\n"
+        f"Отправлено: <b>{sent}</b>\n"
+        f"Не доставлено: <b>{failed}</b>",
+        parse_mode="HTML"
+    )
+
+
+# ── /grant ────────────────────────────────────────────────────
 @router.message(Command("grant"))
 async def cmd_grant(message: Message, bot: Bot):
-    """
-    Выдаёт доступ к гайду вручную.
-    Отмечает юзера как купившего в БД, затем отправляет ему
-    ссылку с запросом на вступление — бот автоматически одобрит.
-    """
     if not is_admin(message.from_user.id):
         return
-
     parts = message.text.split()
     if len(parts) != 2:
-        await message.answer(
-            "Использование: <code>/grant USER_ID</code>",
-            parse_mode="HTML"
-        )
+        await message.answer("Использование: <code>/grant USER_ID</code>", parse_mode="HTML")
         return
-
     try:
-        target_user_id = int(parts[1])
+        target_id = int(parts[1])
     except ValueError:
-        await message.answer("❌ Некорректный ID.", parse_mode="HTML")
+        await message.answer("❌ Некорректный ID", parse_mode="HTML")
         return
 
-    user = await db.get_user(target_user_id)
+    user = await db.get_user(target_id)
     if not user:
-        await message.answer(
-            f"❌ Пользователь {target_user_id} не найден в БД.\n"
-            f"Он должен сначала написать /start боту.",
-            parse_mode="HTML"
-        )
+        await message.answer(f"❌ Юзер {target_id} не найден. Пусть сначала напишет /start.", parse_mode="HTML")
         return
 
-    # Отмечаем как купившего
-    await db.mark_purchased(target_user_id)
-    await db.log_event(target_user_id, "guide_granted_manually", {
-        "by_admin": message.from_user.id
-    })
+    await db.mark_purchased(target_id)
+    await db.log_event(target_id, "guide_granted_manually", {"by_admin": message.from_user.id})
 
-    # Создаём безопасную ссылку с join_request
     try:
         invite = await bot.create_chat_invite_link(
             chat_id=config.PRIVATE_CHANNEL_ID,
             creates_join_request=True,
             expire_date=datetime.now() + timedelta(days=3),
-            name=f"Grant {target_user_id}"
+            name=f"Grant {target_id}"
         )
-        invite_link = invite.invite_link
-
-        # Отправляем ссылку юзеру
         await bot.send_message(
-            target_user_id,
-            f"✅ <b>Старина открыл тебе доступ к ULTIMATE GUIDE!</b>\n\n"
-            f"Жми на ссылку → отправь запрос на вступление → "
-            f"бот автоматически одобрит:\n\n"
-            f"👉 {invite_link}\n\n"
-            f"get rich or die tryin' 💀",
-            parse_mode="HTML",
-            disable_web_page_preview=True
+            target_id,
+            "✅ <b>Тебе открыт доступ к ULTIMATE GUIDE!</b>\n\n"
+            "Жми ссылку → отправь запрос → бот одобрит автоматически:\n\n"
+            f"👉 {invite.invite_link}\n\n"
+            "get rich or die tryin' 💀",
+            parse_mode="HTML", disable_web_page_preview=True
         )
-
-        await message.answer(
-            f"✅ Готово!\n"
-            f"Юзер {target_user_id} отмечен как купивший.\n"
-            f"Ссылка отправлена — когда нажмёт, бот автоматически одобрит вступление.",
-            parse_mode="HTML"
-        )
-
+        await message.answer(f"✅ Юзер {target_id} получил доступ. Ссылка отправлена.", parse_mode="HTML")
     except Exception as e:
-        await message.answer(
-            f"❌ Ошибка создания ссылки: {e}\n\n"
-            f"Юзер {target_user_id} отмечен в БД как купивший.\n"
-            f"Добавь его в канал вручную.",
-            parse_mode="HTML"
-        )
+        await message.answer(f"⚠️ Ошибка ссылки: {e}\nЮзер {target_id} отмечен в БД.", parse_mode="HTML")
 
 
+# ── /revoke ───────────────────────────────────────────────────
 @router.message(Command("revoke"))
 async def cmd_revoke(message: Message, bot: Bot):
-    """Забирает доступ к гайду (кик из канала + сброс в БД)."""
     if not is_admin(message.from_user.id):
         return
-
     parts = message.text.split()
     if len(parts) != 2:
         await message.answer("Использование: <code>/revoke USER_ID</code>", parse_mode="HTML")
         return
-
     try:
-        target_user_id = int(parts[1])
+        target_id = int(parts[1])
     except ValueError:
-        await message.answer("❌ Некорректный ID.", parse_mode="HTML")
+        await message.answer("❌ Некорректный ID")
         return
 
-    # Кикаем из канала
     try:
-        await bot.ban_chat_member(config.PRIVATE_CHANNEL_ID, target_user_id)
-        await bot.unban_chat_member(config.PRIVATE_CHANNEL_ID, target_user_id)
+        await bot.ban_chat_member(config.PRIVATE_CHANNEL_ID, target_id)
+        await bot.unban_chat_member(config.PRIVATE_CHANNEL_ID, target_id)
     except Exception as e:
         await message.answer(f"⚠️ Не удалось кикнуть из канала: {e}", parse_mode="HTML")
 
-    # Сбрасываем в БД
     import aiosqlite
-    async with aiosqlite.connect(config.DB_PATH if hasattr(config, 'DB_PATH') else 'data/bot.db') as db_conn:
-        await db_conn.execute(
-            "UPDATE users SET purchased_guide = 0, purchased_at = NULL WHERE user_id = ?",
-            (target_user_id,)
-        )
-        await db_conn.commit()
+    async with aiosqlite.connect(getattr(config, 'DB_PATH', 'data/bot.db')) as c:
+        await c.execute("UPDATE users SET purchased_guide=0, purchased_at=NULL WHERE user_id=?", (target_id,))
+        await c.commit()
 
-    await message.answer(f"✅ Доступ у {target_user_id} забран.", parse_mode="HTML")
+    await message.answer(f"✅ Доступ у {target_id} отозван.", parse_mode="HTML")
 
 
+# ── /user ─────────────────────────────────────────────────────
 @router.message(Command("user"))
 async def cmd_user_info(message: Message):
     if not is_admin(message.from_user.id):
@@ -194,75 +379,40 @@ async def cmd_user_info(message: Message):
     except ValueError:
         await message.answer("❌ Некорректный ID")
         return
+
     user = await db.get_user(user_id)
     if not user:
         await message.answer("Юзер не найден")
         return
+
     text = (
         f"👤 <b>Юзер {user_id}</b>\n\n"
         f"Username: @{user.get('username') or '—'}\n"
         f"Имя: {user.get('first_name') or '—'}\n"
-        f"Зарегистрирован: {user.get('joined_at')}\n"
+        f"Зарегистрирован: {str(user.get('joined_at','—'))[:16]}\n"
         f"Подписан на канал: {'✅' if user.get('subscribed_to_channel') else '❌'}\n"
-        f"Прогресс курса: {user.get('lesson_progress')}/5\n"
+        f"Прогресс курса: {user.get('lesson_progress', 0)}/5\n"
         f"Курс пройден: {'✅' if user.get('course_completed') else '❌'}\n"
         f"Купил гайд: {'✅' if user.get('purchased_guide') else '❌'}\n"
     )
     await message.answer(text, parse_mode="HTML")
 
 
-@router.message(Command("broadcast"))
-async def cmd_broadcast(message: Message, state: FSMContext):
+# ── /set_rate ─────────────────────────────────────────────────
+@router.message(Command("set_rate"))
+async def cmd_set_rate(message: Message):
     if not is_admin(message.from_user.id):
         return
-    await state.set_state(BroadcastStates.waiting_for_message)
-    await message.answer("📢 Пришли сообщение для рассылки.\nИли /cancel для отмены.")
-
-
-@router.message(Command("cancel"))
-async def cmd_cancel(message: Message, state: FSMContext):
-    if not is_admin(message.from_user.id):
+    parts = message.text.split()
+    if len(parts) != 2:
+        await message.answer("Использование: <code>/set_rate 13.6</code>", parse_mode="HTML")
         return
-    await state.clear()
-    await message.answer("Отменено")
-
-
-@router.message(BroadcastStates.waiting_for_message)
-async def broadcast_preview(message: Message, state: FSMContext):
-    await state.update_data(text=message.html_text)
-    await state.set_state(BroadcastStates.waiting_for_confirm)
-    user_count = len(await db.get_all_user_ids())
-    await message.answer(f"📢 <b>ПРЕВЬЮ</b> — получателей: <b>{user_count}</b>", parse_mode="HTML")
-    await message.answer(message.html_text, parse_mode="HTML")
-    await message.answer("Напиши <code>ОТПРАВИТЬ</code> или /cancel", parse_mode="HTML")
-
-
-@router.message(BroadcastStates.waiting_for_confirm, F.text == "ОТПРАВИТЬ")
-async def broadcast_send(message: Message, state: FSMContext, bot: Bot):
-    data = await state.get_data()
-    text = data.get("text", "")
-    await state.clear()
-    user_ids = await db.get_all_user_ids()
-    sent = failed = 0
-    status_msg = await message.answer(f"⏳ Рассылка... 0/{len(user_ids)}")
-    for i, uid in enumerate(user_ids, 1):
-        try:
-            await bot.send_message(uid, text, parse_mode="HTML")
-            sent += 1
-        except Exception:
-            failed += 1
-        if i % 25 == 0:
-            await asyncio.sleep(1)
-            try:
-                await status_msg.edit_text(f"⏳ Рассылка... {i}/{len(user_ids)}")
-            except Exception:
-                pass
-    await message.answer(
-        f"✅ <b>Готово</b>\nОтправлено: {sent}\nНе доставлено: {failed}",
-        parse_mode="HTML"
-    )
-
-
-@router.message(BroadcastStates.waiting_for_confirm)
-async def broadcast_wrong(message: Message):
-    await message.answer("Напиши <code>ОТПРАВИТЬ</code> или /cancel", parse_mode="HTML")
+    try:
+        rate = float(parts[1].replace(",", "."))
+        if rate <= 0 or rate > 100:
+            raise ValueError()
+    except ValueError:
+        await message.answer("❌ Некорректный курс.")
+        return
+    await db.set_setting("yuan_rate", str(rate))
+    await message.answer(f"✅ Курс юаня: <b>{rate}₽</b>", parse_mode="HTML")
