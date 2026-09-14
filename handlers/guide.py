@@ -12,7 +12,7 @@ from pathlib import Path
 from db import database as db
 from utils.keyboards import guide_menu, payment_buttons, back_to_main, main_menu
 from utils.helpers import generate_payment_label, generate_yoomoney_link
-from content import texts
+from content import texts, marketing_texts
 from config import config
 
 router = Router()
@@ -68,7 +68,7 @@ async def show_guide(callback: CallbackQuery, bot: Bot, state: FSMContext):
 
     await bot.send_message(
         chat_id,
-        texts.GUIDE_DESCRIPTION,
+        marketing_texts.GUIDE_DESCRIPTION,
         reply_markup=guide_menu(),
         parse_mode="HTML"
     )

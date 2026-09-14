@@ -2,7 +2,7 @@
 Inline-клавиатуры бота.
 """
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from content import texts
+from content import texts, marketing_texts
 from config import config
 
 
@@ -48,7 +48,6 @@ def lesson_nav(lesson_num: int, total: int = 5) -> InlineKeyboardMarkup:
     rows = []
 
     if lesson_num < total:
-        # Промежуточный урок
         nav_row = []
         if lesson_num > 1:
             nav_row.append(InlineKeyboardButton(
@@ -61,10 +60,8 @@ def lesson_nav(lesson_num: int, total: int = 5) -> InlineKeyboardMarkup:
         ))
         rows.append(nav_row)
     else:
-        # Последний урок
         rows.append([InlineKeyboardButton(text="← Назад", callback_data=f"lesson_{lesson_num - 1}")])
         rows.append([InlineKeyboardButton(text=texts.BTN_GET_PDF, callback_data="get_pdfs")])
-        rows.append([InlineKeyboardButton(text=texts.BTN_GO_GUIDE, callback_data="guide")])
 
     rows.append([InlineKeyboardButton(text=texts.BTN_BACK_MAIN, callback_data="main_menu")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
@@ -72,8 +69,7 @@ def lesson_nav(lesson_num: int, total: int = 5) -> InlineKeyboardMarkup:
 
 def finish_course() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=texts.BTN_GET_PDF, callback_data="get_pdfs")],
-        [InlineKeyboardButton(text=texts.BTN_GO_GUIDE, callback_data="guide")],
+        [InlineKeyboardButton(text=marketing_texts.BTN_GUIDE_AFTER_COURSE, callback_data="guide")],
         [InlineKeyboardButton(text=texts.BTN_BACK_MAIN, callback_data="main_menu")],
     ])
 
@@ -144,7 +140,14 @@ def calc_result_buttons() -> InlineKeyboardMarkup:
 
 def guide_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=texts.BTN_BUY_GUIDE, callback_data="guide_buy")],
+        [InlineKeyboardButton(
+            text=marketing_texts.BTN_GUIDE_REVIEWS,
+            url="https://t.me/basefrom50otz"
+        )],
+        [InlineKeyboardButton(
+            text=marketing_texts.BTN_GUIDE_BUY,
+            callback_data="guide_buy"
+        )],
         [InlineKeyboardButton(text=texts.BTN_BACK_MAIN, callback_data="main_menu")],
     ])
 
@@ -153,7 +156,7 @@ def payment_buttons(pay_url: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=texts.BTN_PAY, url=pay_url)],
         [InlineKeyboardButton(text=texts.BTN_PAYMENT_DONE, callback_data="check_payment")],
-        [InlineKeyboardButton(text=texts.BTN_BACK, callback_data="guide")],  # назад к описанию гайда
+        [InlineKeyboardButton(text=texts.BTN_BACK, callback_data="guide")],
     ])
 
 
