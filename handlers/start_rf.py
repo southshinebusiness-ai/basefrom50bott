@@ -13,7 +13,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 from db import database as db
 from utils.helpers import is_subscribed_to_channel
-from content import texts
+from content import texts, marketing_texts
 
 router = Router()
 TOTAL_LESSONS = 5
@@ -67,18 +67,20 @@ def kb_lesson(lesson_num: int) -> InlineKeyboardMarkup:
         nav.append(InlineKeyboardButton(text="Дальше →", callback_data=f"lesson_{lesson_num + 1}"))
         rows.append(nav)
     else:
-        # Последний урок
-        rows.append([InlineKeyboardButton(text="← Назад",            callback_data=f"lesson_{lesson_num - 1}")])
-        rows.append([InlineKeyboardButton(text="📥 Получить PDF",     callback_data="get_pdfs")])
-        rows.append([InlineKeyboardButton(text="💎 ULTIMATE GUIDE",   callback_data="guide")])
+        # После последнего урока сначала отдаём обещанный PDF.
+        # Продающий переход к ULTIMATE показывается уже после получения материалов.
+        rows.append([InlineKeyboardButton(text="← Назад", callback_data=f"lesson_{lesson_num - 1}")])
+        rows.append([InlineKeyboardButton(text="📥 Получить PDF", callback_data="get_pdfs")])
     rows.append([InlineKeyboardButton(text="⬅️ Главное меню", callback_data="main_menu")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 def kb_finish() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📥 Получить PDF",   callback_data="get_pdfs")],
-        [InlineKeyboardButton(text="💎 ULTIMATE GUIDE", callback_data="guide")],
-        [InlineKeyboardButton(text="⬅️ Главное меню",  callback_data="main_menu")],
+        [InlineKeyboardButton(
+            text=marketing_texts.BTN_GUIDE_AFTER_COURSE,
+            callback_data="guide"
+        )],
+        [InlineKeyboardButton(text="⬅️ Главное меню", callback_data="main_menu")],
     ])
 
 
@@ -206,6 +208,7 @@ async def send_pdfs(callback: CallbackQuery, bot: Bot, state: FSMContext):
     chat_id = callback.message.chat.id
     msg_id  = callback.message.message_id
     await db.log_event(user_id, "received_pdfs")
+    await db.log_event(user_id, "course_complete")
 
     await delete_old_messages(bot, chat_id, state, msg_id)
     await state.clear()
@@ -228,5 +231,10 @@ async def send_pdfs(callback: CallbackQuery, bot: Bot, state: FSMContext):
     else:
         await bot.send_message(chat_id, "📥 База скоро будет загружена. Пиши @mmarsellus.", parse_mode="HTML")
 
-    await bot.send_message(chat_id, texts.COURSE_FINISH, reply_markup=kb_finish(), parse_mode="HTML")
+    await bot.send_message(
+        chat_id,
+        marketing_texts.COURSE_FINISH,
+        reply_markup=kb_finish(),
+        parse_mode="HTML"
+    )
     await callback.answer("PDF отправлен ✅")
