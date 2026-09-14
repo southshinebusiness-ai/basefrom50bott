@@ -7,6 +7,26 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 load_dotenv()
 
+
+def _db_path() -> str:
+    """Возвращает постоянный путь к SQLite.
+
+    Railway автоматически задаёт RAILWAY_VOLUME_MOUNT_PATH, если к сервису
+    подключён Volume. В этом случае база хранится внутри Volume и переживает
+    redeploy/restart. Локально остаётся старый путь data/bot.db.
+    DB_PATH можно переопределить вручную при необходимости.
+    """
+    explicit_path = os.getenv("DB_PATH")
+    if explicit_path:
+        return explicit_path
+
+    volume_mount = os.getenv("RAILWAY_VOLUME_MOUNT_PATH")
+    if volume_mount:
+        return os.path.join(volume_mount, "bot.db")
+
+    return "data/bot.db"
+
+
 @dataclass
 class Config:
     # Токен бота от @BotFather
@@ -32,8 +52,8 @@ class Config:
     REVIEWS_CHANNEL_LINK: str = "https://t.me/basefrom50otz"
     YOUTUBE_LINK: str = os.getenv("YOUTUBE_LINK", "")
     TIKTOK_LINK: str = os.getenv("TIKTOK_LINK", "")
-    # База данных
-    DB_PATH: str = "data/bot.db"
+    # База данных: Railway Volume -> <mount>/bot.db, локально -> data/bot.db
+    DB_PATH: str = _db_path()
     # Порт для веб-сервера
     PORT: int = int(os.getenv("PORT", "8080"))
 
