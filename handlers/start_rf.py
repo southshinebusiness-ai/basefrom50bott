@@ -34,7 +34,7 @@ LESSON_TEXTS = {
     2: texts.LESSON_2,
     3: texts.LESSON_3,
     4: texts.LESSON_4,
-    5: texts.LESSON_5,
+    5: marketing_texts.LESSON_5,
 }
 
 
