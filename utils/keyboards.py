@@ -8,13 +8,13 @@ from config import config
 
 def main_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=texts.BTN_START_RF, callback_data="start_rf")],
+        [InlineKeyboardButton(text="🎓 НАЧАТЬ БЕСПЛАТНОЕ ОБУЧЕНИЕ 🎓", callback_data="start_rf")],
+        [InlineKeyboardButton(text="💎 ULTIMATE GUIDE — КИТАЙ 💎", callback_data="guide")],
         [
-            InlineKeyboardButton(text=texts.BTN_BUYOUT, callback_data="buyout"),
-            InlineKeyboardButton(text=texts.BTN_CALCULATOR, callback_data="calc"),
+            InlineKeyboardButton(text="📦 РАССЧИТАТЬ ДОСТАВКУ", callback_data="calc"),
+            InlineKeyboardButton(text="🤝 ВЫКУП ТОВАРА", callback_data="buyout"),
         ],
-        [InlineKeyboardButton(text=texts.BTN_MAIN_CHANNEL, url="https://t.me/basefrom50")],
-        [InlineKeyboardButton(text=texts.BTN_GUIDE, callback_data="guide")],
+        [InlineKeyboardButton(text="📲 ОСНОВНОЙ КАНАЛ 📲", url="https://t.me/basefrom50")],
     ])
 
 
