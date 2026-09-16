@@ -83,7 +83,7 @@ async def initiate_payment(callback: CallbackQuery):
     user = await db.get_user(user_id)
     if user and user.get("purchased_guide"):
         await callback.answer(
-            "Ты уже купил гайд! Если потерял доступ — пиши @mmarsellus.",
+            "Ты уже купил гайд! Если потерял доступ — пиши @basefrom50man.",
             show_alert=True
         )
         return
@@ -136,8 +136,10 @@ async def check_payment(callback: CallbackQuery, bot: Bot):
             pass
 
         if invite_link:
+            payment_found_text = texts.GUIDE_PAYMENT_FOUND.format(invite_link=invite_link)
+            payment_found_text = payment_found_text.replace("@mmarsellus", "@basefrom50man")
             await callback.message.answer(
-                texts.GUIDE_PAYMENT_FOUND.format(invite_link=invite_link),
+                payment_found_text,
                 reply_markup=main_menu(),
                 parse_mode="HTML",
                 disable_web_page_preview=True
@@ -146,7 +148,7 @@ async def check_payment(callback: CallbackQuery, bot: Bot):
             await callback.message.answer(
                 "✅ <b>Оплата подтверждена!</b>\n\n"
                 "Возникла проблема с созданием ссылки.\n"
-                "Напиши @mmarsellus — добавлю вручную.",
+                "Напиши @basefrom50man — добавлю вручную.",
                 reply_markup=main_menu(),
                 parse_mode="HTML"
             )
@@ -162,7 +164,7 @@ async def check_payment(callback: CallbackQuery, bot: Bot):
             "⏳ <b>Платёж ещё обрабатывается...</b>\n\n"
             "Обычно это занимает 10-30 секунд после оплаты.\n"
             "Попробуй нажать кнопку ещё раз через минуту.\n\n"
-            "Если прошло больше 5 минут — пиши @mmarsellus.",
+            "Если прошло больше 5 минут — пиши @basefrom50man.",
             reply_markup=kb,
             parse_mode="HTML"
         )

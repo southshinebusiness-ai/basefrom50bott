@@ -47,7 +47,7 @@ class Config:
     DOLLAR_RATE: float = float(os.getenv("DOLLAR_RATE", "80.5"))
     YUAN_RATE:   float = float(os.getenv("YUAN_RATE", "12.0"))
     # Ссылки
-    PERSONAL_LINK: str = "https://t.me/mmarsellus"
+    PERSONAL_LINK: str = "https://t.me/basefrom50man"
     MAIN_CHANNEL_LINK: str = "https://t.me/basefrom50"
     REVIEWS_CHANNEL_LINK: str = "https://t.me/basefrom50otz"
     YOUTUBE_LINK: str = os.getenv("YOUTUBE_LINK", "")
