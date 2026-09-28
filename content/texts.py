@@ -313,7 +313,7 @@ GUIDE_REVIEWS = """💬 <b>ОТЗЫВЫ УЧЕНИКОВ</b>
 
 Все отзывы в канале → @basefrom50otz"""
 
-GUIDE_BUY = """💎 <b>ULTIMATE GUIDE — 5 990₽</b>
+GUIDE_BUY = """💎 <b>ULTIMATE GUIDE — 1 990₽</b>
 
 Жми "Оплатить" → откроется страница YooMoney → оплачиваешь → возвращаешься в бот → жмёшь "Я оплатил".
 
