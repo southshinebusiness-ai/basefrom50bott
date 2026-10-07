@@ -1,0 +1,11 @@
+{
+  "name": "basefrom50-free-guide",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "pdf": "node scripts/export.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.55.0"
+  }
+}
