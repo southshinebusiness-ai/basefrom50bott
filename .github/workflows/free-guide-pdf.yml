@@ -1,0 +1,49 @@
+name: Build BASEFROM50 Free Guide PDF
+
+on:
+  push:
+    branches:
+      - basefrom50-free-guide
+    paths:
+      - "free-guide/**"
+      - ".agents/skills/basefrom50-editorial-pdf/**"
+      - "AGENTS.md"
+      - ".github/workflows/free-guide-pdf.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: free-guide
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build PDF
+        run: npm run pdf
+
+      - name: Verify PDF
+        run: |
+          test -s output/basefrom50-free-guide.pdf
+          ls -lh output/basefrom50-free-guide.pdf
+
+      - name: Upload PDF artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: basefrom50-free-guide
+          path: free-guide/output/basefrom50-free-guide.pdf
+          if-no-files-found: error
