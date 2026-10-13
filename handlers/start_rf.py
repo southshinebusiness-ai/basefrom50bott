@@ -10,6 +10,7 @@ from config import config
 
 router = Router()
 PDF_PATH = Path("content/pdfs/basefrom50_free_guide.pdf")
+LEGACY_PDF_PATH = Path("content/pdfs/basefrom50_start_rf.pdf")
 
 
 def after_guide_menu() -> InlineKeyboardMarkup:
@@ -48,7 +49,8 @@ async def _send_free_guide(
 
     await state.clear()
 
-    if not PDF_PATH.exists():
+    guide_path = PDF_PATH if PDF_PATH.exists() else LEGACY_PDF_PATH
+    if not guide_path.exists():
         await bot.send_message(
             chat_id,
             "Не удалось загрузить бесплатный гайд. Попробуй чуть позже.",
@@ -59,7 +61,7 @@ async def _send_free_guide(
 
     await bot.send_document(
         chat_id,
-        FSInputFile(PDF_PATH),
+        FSInputFile(guide_path),
         caption=(
             "📖 <b>Бесплатный гайд BASE FROM 50</b>\n\n"
             "Как покупать вещи из Китая напрямую — без российских посредников и лишней наценки.\n\n"
