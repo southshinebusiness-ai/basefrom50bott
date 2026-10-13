@@ -55,11 +55,10 @@ async def cmd_start(message: Message, state: FSMContext, bot: Bot):
         if len(parts) > 1:
             payload = parts[1].strip()
 
-    await db.log_event(
-        message.from_user.id,
-        "start",
-        {"payload": payload} if payload else None,
-    )
+    if payload:
+        await db.log_event(message.from_user.id, "start", {"payload": payload})
+    else:
+        await db.log_event(message.from_user.id, "start")
 
     if payload == "ultimate_guide":
         # Кликабельная кнопка в PDF должна вести сразу в ULTIMATE,
