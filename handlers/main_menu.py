@@ -49,7 +49,30 @@ async def cmd_start(message: Message, state: FSMContext, bot: Bot):
         username=message.from_user.username or "",
         first_name=message.from_user.first_name or ""
     )
-    await db.log_event(message.from_user.id, "start")
+    payload = ""
+    if message.text:
+        parts = message.text.split(maxsplit=1)
+        if len(parts) > 1:
+            payload = parts[1].strip()
+
+    await db.log_event(
+        message.from_user.id,
+        "start",
+        {"payload": payload} if payload else None,
+    )
+
+    if payload == "ultimate_guide":
+        # Кликабельная кнопка в PDF должна вести сразу в ULTIMATE,
+        # а не возвращать пользователя в главное меню.
+        from handlers.guide import send_guide_screen
+        await send_guide_screen(
+            bot=bot,
+            chat_id=message.chat.id,
+            user_id=message.from_user.id,
+            state=state,
+        )
+        return
+
     await _send_menu(bot, message.chat.id, state)
 
 
