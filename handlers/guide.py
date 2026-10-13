@@ -33,10 +33,9 @@ async def create_secure_invite(bot: Bot, user_id: int) -> str | None:
         return None
 
 
-@router.callback_query(F.data == "guide")
-async def show_guide(callback: CallbackQuery, bot: Bot, state: FSMContext):
-    chat_id = callback.message.chat.id
-    await db.log_event(callback.from_user.id, "view_guide")
+async def send_guide_screen(bot: Bot, chat_id: int, user_id: int, state: FSMContext):
+    """Показывает экран ULTIMATE GUIDE без привязки к CallbackQuery."""
+    await db.log_event(user_id, "view_guide")
 
     # Удаляем баннер любого раздела
     try:
@@ -52,12 +51,6 @@ async def show_guide(callback: CallbackQuery, bot: Bot, state: FSMContext):
     except Exception:
         pass
 
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
-
-    # Баннер ULTIMATE GUIDE
     banner = Path("content/images/banner_guide_final.png")
     if banner.exists():
         try:
@@ -71,6 +64,23 @@ async def show_guide(callback: CallbackQuery, bot: Bot, state: FSMContext):
         marketing_texts.GUIDE_DESCRIPTION,
         reply_markup=guide_menu(),
         parse_mode="HTML"
+    )
+
+
+@router.callback_query(F.data == "guide")
+async def show_guide(callback: CallbackQuery, bot: Bot, state: FSMContext):
+    chat_id = callback.message.chat.id
+
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+
+    await send_guide_screen(
+        bot=bot,
+        chat_id=chat_id,
+        user_id=callback.from_user.id,
+        state=state,
     )
     await callback.answer()
 
