@@ -114,7 +114,10 @@ async def _send_free_guide(
         caption=(
             "📖 <b>Бесплатный гайд BASE FROM 50</b>\n\n"
             "Как покупать вещи из Китая напрямую — без российских посредников и лишней наценки.\n\n"
-            "Сохрани файл: внутри ссылки и кнопка перехода в ULTIMATE кликабельны."
+            "<b>Ссылки на товары из гайда:</b>\n"
+            '<a href="https://item.taobao.com/item.htm?id=1086416018195&amp;skuId=6306416471756">Куртка Jaded London</a>\n'
+            '<a href="https://item.taobao.com/item.htm?id=941099471173&amp;skuId=5840465488524">Кеды Maison Margiela</a>\n'
+            '<a href="https://item.taobao.com/item.htm?id=925791280757&amp;skuId=5803951976591">Худи True Religion</a>'
         ),
         parse_mode="HTML",
     )
