@@ -97,5 +97,5 @@ COURSE_FINISH = """✅ <b>БЕСПЛАТНОЕ ОБУЧЕНИЕ ПРОЙДЕНО
 
 
 BTN_GUIDE_REVIEWS = "💬 ОТЗЫВЫ И РЕЗУЛЬТАТЫ"
-BTN_GUIDE_BUY = "💎 КУПИТЬ ULTIMATE — 1 990₽"
+BTN_GUIDE_BUY = "ЗАБРАТЬ ДОСТУП - 1990р"
 BTN_GUIDE_AFTER_COURSE = "💎 ПОСМОТРЕТЬ, ЧТО ВНУТРИ ULTIMATE"
