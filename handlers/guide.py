@@ -51,7 +51,7 @@ async def send_guide_screen(bot: Bot, chat_id: int, user_id: int, state: FSMCont
     except Exception:
         pass
 
-    banner = Path("content/images/banner_guide_final.png")
+    banner = Path("content/images/banner_guide_ultimate_20261025.jpg")
     if banner.exists():
         try:
             msg = await bot.send_photo(chat_id, FSInputFile(banner))

@@ -137,12 +137,12 @@ def calc_result_buttons() -> InlineKeyboardMarkup:
 def guide_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text=marketing_texts.BTN_GUIDE_REVIEWS,
-            url="https://t.me/basefrom50otz"
-        )],
-        [InlineKeyboardButton(
             text=marketing_texts.BTN_GUIDE_BUY,
             callback_data="guide_buy"
+        )],
+        [InlineKeyboardButton(
+            text=marketing_texts.BTN_GUIDE_REVIEWS,
+            url="https://t.me/basefrom50otz"
         )],
         [InlineKeyboardButton(text=texts.BTN_BACK_MAIN, callback_data="main_menu")],
     ])
