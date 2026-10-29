@@ -43,8 +43,11 @@ async def find_confirmed_operation(payment: dict) -> dict | None:
                     raise YooMoneyAPIError(
                         f"ЮMoney API: {result.get('error', 'invalid response') if isinstance(result, dict) else 'invalid response'}"
                     )
-                for operation in result.get("operations", []):
-                    if validate_history_operation(operation, payment):
+                operations = result.get("operations")
+                if not isinstance(operations, list):
+                    raise YooMoneyAPIError("ЮMoney API вернул некорректную историю")
+                for operation in operations:
+                    if isinstance(operation, dict) and validate_history_operation(operation, payment):
                         return operation
 
                 next_record = result.get("next_record")
