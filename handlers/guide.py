@@ -8,14 +8,34 @@ from aiogram import Router, F, Bot
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
 from aiogram.fsm.context import FSMContext
 from pathlib import Path
+from html import escape
 
 from db import database as db
-from utils.keyboards import guide_menu, payment_buttons, back_to_main, main_menu
+from utils.keyboards import guide_menu, payment_buttons, tribute_payment_buttons, back_to_main, main_menu
 from utils.helpers import generate_payment_label, generate_yoomoney_link
 from content import texts, marketing_texts
 from config import config
 
 router = Router()
+
+
+def offer_notice() -> str:
+    """Ссылка на оферту в Telegram HTML, без неработающего placeholder."""
+    if not config.OFFER_URL.startswith(("https://", "http://")):
+        return ""
+    return (
+        "Оплачивая доступ, ты принимаешь условия "
+        f'<a href="{escape(config.OFFER_URL, quote=True)}">публичной оферты</a>.'
+    )
+
+
+def guide_description() -> str:
+    description = marketing_texts.GUIDE_DESCRIPTION
+    if config.TRIBUTE_PAYMENT_URL:
+        price = f"{config.PRICE_ULTIMATE_GUIDE:,}".replace(",", " ")
+        description = description.replace("1 990 ₽", f"{price} ₽")
+    notice = offer_notice()
+    return f"{description}\n\n{notice}" if notice else description
 
 
 async def create_secure_invite(bot: Bot, user_id: int) -> str | None:
@@ -61,7 +81,7 @@ async def send_guide_screen(bot: Bot, chat_id: int, user_id: int, state: FSMCont
 
     await bot.send_message(
         chat_id,
-        marketing_texts.GUIDE_DESCRIPTION,
+        guide_description(),
         reply_markup=guide_menu(),
         parse_mode="HTML"
     )
@@ -96,6 +116,27 @@ async def initiate_payment(callback: CallbackQuery):
             "Ты уже купил гайд! Если потерял доступ — пиши @basefrom50man.",
             show_alert=True
         )
+        return
+
+    if config.TRIBUTE_PAYMENT_URL:
+        # Tribute подтверждает платёж и управляет доступом к тестовому каналу.
+        # Не создаём фиктивный платёж YooMoney и не обещаем его проверку.
+        await db.log_event(user_id, "tribute_checkout_initiated", {
+            "amount": config.PRICE_ULTIMATE_GUIDE,
+        })
+        price = f"{config.PRICE_ULTIMATE_GUIDE:,}".replace(",", " ")
+        notice = offer_notice()
+        await callback.message.edit_text(
+            f"💎 <b>ULTIMATE GUIDE</b>\n\n"
+            f"Разовая оплата — <b>{price} ₽</b>. Доступ без продления.\n\n"
+            "Оплата и предоставление доступа проходят через Tribute.\n\n"
+            + (f"{notice}\n\n" if notice else "")
+            + "После оплаты перейди в закрытый канал по инструкции Tribute.",
+            reply_markup=tribute_payment_buttons(config.TRIBUTE_PAYMENT_URL),
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+        )
+        await callback.answer()
         return
 
     label = generate_payment_label(user_id)
