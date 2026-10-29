@@ -138,6 +138,8 @@ def main():
                 "firewall rules": "ufw status 2>/dev/null | head -n 20 || true",
                 "bot-related processes": "ps -eo comm= | grep -E 'python|caddy|nginx' | sort | uniq -c | head -n 15 || true",
                 "repo tracked modifications count": "git -C /opt/bot status --porcelain --untracked-files=no | wc -l",
+                "repo tracked modification paths": "git -C /opt/bot diff --name-only | head -n 12",
+                "repo tracked modification summary": "git -C /opt/bot diff --stat | tail -n 8",
                 "repo untracked file count": "git -C /opt/bot ls-files --others --exclude-standard | wc -l",
                 "requirements present": "test -f /opt/bot/requirements.txt && echo yes || echo no",
                 "local main.py checksum": "sha256sum /opt/bot/main.py | cut -c 1-20",
