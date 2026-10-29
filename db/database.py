@@ -227,6 +227,7 @@ async def confirm_payment(label: str, operation_id: str):
             await conn.rollback()
             return None
         payment = dict(row)
+        newly_confirmed = payment["status"] not in ("completed", "success")
         if payment["status"] in ("completed", "success"):
             if payment["operation_id"] != operation_id:
                 await conn.rollback()
@@ -253,7 +254,8 @@ async def confirm_payment(label: str, operation_id: str):
                 purchased_at=COALESCE(users.purchased_at, CURRENT_TIMESTAMP)
         """, (payment["user_id"],))
         await conn.commit()
-        return await get_payment_by_label(label)
+        result = await get_payment_by_label(label)
+        return {**result, "_newly_confirmed": newly_confirmed}
 
 
 async def get_latest_payment(user_id: int):
