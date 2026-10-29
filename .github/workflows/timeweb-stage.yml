@@ -1,0 +1,26 @@
+name: Timeweb stage release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/yoomoney-payments-reliability-2026
+    paths:
+      - scripts/timeweb_stage.py
+      - .github/workflows/timeweb-stage.yml
+
+permissions:
+  contents: read
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python -m pip install --quiet 'paramiko>=3.4,<5'
+      - name: Stage bot source and YooMoney secret without starting it
+        env:
+          TIMEWEB_SSH_PASSWORD: ${{ secrets.TIMEWEB_SSH_PASSWORD }}
+          YOOMONEY_SECRET: ${{ secrets.YOOMONEY_SECRET }}
+        run: python scripts/timeweb_stage.py
