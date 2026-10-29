@@ -19,6 +19,8 @@ import paramiko
 API = "https://api.timeweb.cloud"
 EXPECTED_SERVER_NAME = "Honest Plover"
 EXPECTED_IP = "5.129.247.209"
+# First-seen host key from owner-verified server IP, 2026-10-29.
+PINNED_HOSTKEY_SHA256 = "IvZC5ONQ0G6HtVH3efNl7B7VLEjpDujQEYn2iBrNJKI"
 
 
 def api_get(path, token):
@@ -78,7 +80,7 @@ def main():
         if server.get("is_allow_root_ssh_pass") is not True:
             print("SSH probe skipped: root password login disabled.")
             return 0
-        password = server.get("root_pass")
+        password = os.environ.get("TIMEWEB_SSH_PASSWORD", "").strip() or server.get("root_pass")
         if not isinstance(password, str) or not password or set(password) == {"*"}:
             print("SSH probe skipped: no usable password in Timeweb API.")
             return 0
@@ -93,7 +95,7 @@ def main():
                 hashlib.sha256(host_key.asbytes()).digest()
             ).decode("ascii").rstrip("=")
             print("SSH server host-key fingerprint (SHA256): " + fingerprint)
-            pinned = os.environ.get("TIMEWEB_SSH_HOSTKEY_SHA256", "").strip()
+            pinned = os.environ.get("TIMEWEB_SSH_HOSTKEY_SHA256", "").strip() or PINNED_HOSTKEY_SHA256
             if pinned and pinned != fingerprint:
                 print("SSH probe aborted: host key fingerprint mismatch.")
                 return 1
