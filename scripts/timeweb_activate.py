@@ -82,7 +82,7 @@ def main():
             for filename in ("main.py", "config.py"):
                 with sftp.open(ROOT + "/" + filename + ".tmp", "wb") as f:
                     f.write(Path(filename).read_bytes())
-                sftp.rename(ROOT + "/" + filename + ".tmp", ROOT + "/" + filename)
+                sftp.posix_rename(ROOT + "/" + filename + ".tmp", ROOT + "/" + filename)
             status, output = command(t, preflight, timeout=25)
             if status != 0:
                 raise RuntimeError("Preflight failed, service not installed")
