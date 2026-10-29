@@ -124,6 +124,17 @@ def main():
                 "nginx installed": "command -v nginx >/dev/null && echo yes || echo no",
                 "caddy installed": "command -v caddy >/dev/null && echo yes || echo no",
                 "git checkout at /opt/bot": "test -d /opt/bot/.git && echo yes || echo no",
+                "systemd unit details": "systemctl show basefrom50bot.service -p LoadState -p UnitFileState -p ActiveState -p SubState -p Result -p ExecMainCode -p ExecMainStatus -p ActiveEnterTimestamp -p InactiveEnterTimestamp --no-pager",
+                "systemd unit enabled": "systemctl is-enabled basefrom50bot.service || true",
+                "Python virtualenv present": "test -x /opt/bot/venv/bin/python3 && echo yes || echo no",
+                "repo branch": "git -C /opt/bot branch --show-current 2>/dev/null || true",
+                "repo commit": "git -C /opt/bot rev-parse --short HEAD 2>/dev/null || true",
+                "SQLite read-only integrity": "python3 -c 'import sqlite3; c=sqlite3.connect(\"file:/opt/bot/data/bot.db?mode=ro\",uri=True); print(c.execute(\"PRAGMA integrity_check\").fetchone()[0]); c.close()' 2>/dev/null || echo check-unavailable",
+                "important env keys configured": "python3 -c 'from pathlib import Path; p=Path(\"/opt/bot/.env\"); d={k.strip():v.strip() for l in p.read_text().splitlines() if \"=\" in l and not l.lstrip().startswith(\"#\") for k,v in [l.split(\"=\",1)]}; print(\" \".join(k+\"=\"+(\"set\" if d.get(k) else \"empty\") for k in (\"BOT_TOKEN\",\"ADMIN_ID\",\"YOOMONEY_SECRET\",\"YOOMONEY_TOKEN\",\"DB_PATH\",\"PORT\")))' 2>/dev/null || echo check-unavailable",
+                "bot log file present": "test -f /opt/bot/data/bot.log && echo yes || echo no",
+                "disk free space": "df -h /opt/bot | tail -n 1 | awk '{print $4 \" free; \" $5 \" used\"}'",
+                "recent bot log error count": "if test -f /opt/bot/data/bot.log; then tail -n 300 /opt/bot/data/bot.log | grep -Eic 'ERROR|Traceback|Exception|CRITICAL' || true; else echo log-not-found; fi",
+                "recent systemd journal error count": "journalctl -u basefrom50bot.service --no-pager -n 300 2>/dev/null | grep -Eic 'ERROR|Traceback|Exception|CRITICAL|Failed' || true",
             }
             for title, command in checks.items():
                 try:
