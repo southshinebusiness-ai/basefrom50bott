@@ -30,5 +30,6 @@ jobs:
       - name: Probe bot service via SSH (read-only)
         env:
           TIMEWEB_API_TOKEN: ${{ secrets.TIMEWEB_API_TOKEN }}
+          TIMEWEB_SSH_PASSWORD: ${{ secrets.TIMEWEB_SSH_PASSWORD }}
           TIMEWEB_SSH_HOSTKEY_SHA256: ${{ secrets.TIMEWEB_SSH_HOSTKEY_SHA256 }}
         run: python scripts/timeweb_ssh_diagnostic.py
