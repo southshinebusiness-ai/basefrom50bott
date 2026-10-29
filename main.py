@@ -79,13 +79,13 @@ async def main():
     web_app = create_web_app(bot)
     runner = web.AppRunner(web_app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", config.PORT)
+    site = web.TCPSite(runner, config.WEB_BIND_HOST, config.PORT)
     await site.start()
-    logging.info(f"Веб-сервер запущен на порту {config.PORT}")
-    logging.info(f"YooMoney webhook: http://0.0.0.0:{config.PORT}/yoomoney/notify")
+    logging.info(f"Веб-сервер запущен на {config.WEB_BIND_HOST}:{config.PORT}")
+    logging.info(f"YooMoney webhook (local): http://{config.WEB_BIND_HOST}:{config.PORT}/yoomoney/notify")
 
     # Запускаем бота
-    await bot.delete_webhook(drop_pending_updates=True)
+    await bot.delete_webhook(drop_pending_updates=False)
     me = await bot.get_me()
     logging.info(f"Бот @{me.username} запущен. Polling started.")
 
