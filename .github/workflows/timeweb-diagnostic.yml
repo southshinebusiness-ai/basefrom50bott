@@ -1,0 +1,25 @@
+name: Timeweb read-only diagnostic
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/yoomoney-payments-reliability-2026
+    paths:
+      - .github/workflows/timeweb-diagnostic.yml
+      - scripts/timeweb_diagnostic.py
+
+permissions:
+  contents: read
+
+jobs:
+  timeweb:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Timeweb server without changing it
+        env:
+          TIMEWEB_API_TOKEN: ${{ secrets.TIMEWEB_API_TOKEN }}
+          TIMEWEB_SERVER_NAME: Honest Plover
+        run: python scripts/timeweb_diagnostic.py
