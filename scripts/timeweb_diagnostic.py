@@ -1,5 +1,7 @@
 """Read-only diagnostics for Timeweb Cloud; run from GitHub Actions with secret.
 
+Manual verification run after the Timeweb token secret was configured.
+
 Never log the API token or full API responses. This script does not change
 cloud resources, access customer data, or touch production bot files.
 """
