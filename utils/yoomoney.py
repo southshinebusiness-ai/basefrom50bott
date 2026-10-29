@@ -81,7 +81,7 @@ def validate_history_operation(operation: dict, payment: dict) -> bool:
 
     В operation-history входящая сумма обычно указана ПОСЛЕ комиссии.
     Полную списанную сумму этот API не отдаёт, поэтому допускаем максимум
-    5% комиссии; более неоднозначные платежи требуют ручной проверки.
+    3,2% комиссии; более неоднозначные платежи требуют ручной проверки.
     """
     if not operation or not payment or not operation.get("operation_id"):
         return False
@@ -102,5 +102,5 @@ def validate_history_operation(operation: dict, payment: dict) -> bool:
         expected is not None
         and received is not None
         and expected > 0
-        and expected * Decimal("0.95") <= received <= expected
+        and expected * Decimal("0.968") <= received <= expected
     )
