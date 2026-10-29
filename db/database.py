@@ -40,9 +40,48 @@ async def init_db():
                 label TEXT UNIQUE,
                 operation_id TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                completed_at TIMESTAMP
+                completed_at TIMESTAMP,
+                delivery_status TEXT NOT NULL DEFAULT 'pending',
+                delivery_attempts INTEGER NOT NULL DEFAULT 0,
+                delivery_started_at TIMESTAMP,
+                delivery_sent_at TIMESTAMP,
+                invite_link TEXT,
+                last_delivery_error TEXT,
+                last_checked_at TIMESTAMP
             )
         """)
+
+        # Миграция существующей SQLite без потери платежей и пользователей.
+        cursor = await db.execute("PRAGMA table_info(payments)")
+        existing = {row[1] for row in await cursor.fetchall()}
+        was_legacy = "delivery_status" not in existing
+        new_columns = {
+            "delivery_status": "TEXT NOT NULL DEFAULT 'pending'",
+            "delivery_attempts": "INTEGER NOT NULL DEFAULT 0",
+            "delivery_started_at": "TIMESTAMP",
+            "delivery_sent_at": "TIMESTAMP",
+            "invite_link": "TEXT",
+            "last_delivery_error": "TEXT",
+            "last_checked_at": "TIMESTAMP",
+        }
+        for name, sql_type in new_columns.items():
+            if name not in existing:
+                await db.execute(f"ALTER TABLE payments ADD COLUMN {name} {sql_type}")
+
+        if was_legacy:
+            # Не рассылаем приглашения повторно всем старым покупателям.
+            # Старые оплаченные заказы доступны для восстановления вручную.
+            await db.execute("""
+                UPDATE payments SET delivery_status='legacy'
+                WHERE status IN ('completed', 'success')
+            """)
+
+        await db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status, created_at)"
+        )
+        await db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_payments_operation ON payments(operation_id)"
+        )
 
         # Настройки (курс юаня и пр.)
         await db.execute("""
@@ -171,16 +210,156 @@ async def create_payment(user_id: int, amount: int, product: str, label: str):
         await db.commit()
 
 
-async def mark_payment_completed(label: str, operation_id: str):
-    async with aiosqlite.connect(config.DB_PATH) as db:
-        await db.execute("""
-            UPDATE payments
-            SET status = 'completed',
-                operation_id = ?,
-                completed_at = CURRENT_TIMESTAMP
-            WHERE label = ?
-        """, (operation_id, label))
-        await db.commit()
+async def confirm_payment(label: str, operation_id: str):
+    """Атомарно подтверждает заказ и право пользователя на доступ.
+
+    Не позволяет использовать один operation_id для разных заказов.
+    Повторный webhook с тем же operation_id безопасен.
+    """
+    if not label or not operation_id:
+        return None
+    async with aiosqlite.connect(config.DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        await conn.execute("BEGIN IMMEDIATE")
+        cur = await conn.execute("SELECT * FROM payments WHERE label = ?", (label,))
+        row = await cur.fetchone()
+        if not row:
+            await conn.rollback()
+            return None
+        payment = dict(row)
+        if payment["status"] in ("completed", "success"):
+            if payment["operation_id"] != operation_id:
+                await conn.rollback()
+                return None
+        else:
+            cur = await conn.execute(
+                "SELECT label FROM payments WHERE operation_id = ? AND label <> ?",
+                (operation_id, label)
+            )
+            if await cur.fetchone():
+                await conn.rollback()
+                return None
+            await conn.execute("""
+                UPDATE payments SET status='completed', operation_id=?,
+                    completed_at=CURRENT_TIMESTAMP
+                WHERE label=? AND status='pending'
+            """, (operation_id, label))
+
+        await conn.execute("""
+            INSERT INTO users (user_id, purchased_guide, purchased_at)
+            VALUES (?, 1, CURRENT_TIMESTAMP)
+            ON CONFLICT(user_id) DO UPDATE SET
+                purchased_guide=1,
+                purchased_at=COALESCE(users.purchased_at, CURRENT_TIMESTAMP)
+        """, (payment["user_id"],))
+        await conn.commit()
+        return await get_payment_by_label(label)
+
+
+async def get_latest_payment(user_id: int):
+    async with aiosqlite.connect(config.DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        cur = await conn.execute(
+            "SELECT * FROM payments WHERE user_id=? AND product='ultimate_guide' "
+            "ORDER BY id DESC LIMIT 1", (user_id,)
+        )
+        row = await cur.fetchone()
+        return dict(row) if row else None
+
+
+async def claim_delivery(label: str) -> dict | None:
+    """Захватывает право отправить ссылку, не допуская параллельной рассылки."""
+    async with aiosqlite.connect(config.DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        await conn.execute("BEGIN IMMEDIATE")
+        cur = await conn.execute("""
+            SELECT * FROM payments WHERE label=? AND status IN ('completed','success')
+            AND (
+                delivery_status IN ('pending', 'failed')
+                OR (delivery_status='sending'
+                    AND datetime(delivery_started_at, '+2 minutes') <= CURRENT_TIMESTAMP)
+            )
+        """, (label,))
+        row = await cur.fetchone()
+        if not row:
+            await conn.rollback()
+            return None
+        await conn.execute("""
+            UPDATE payments SET delivery_status='sending',
+                delivery_started_at=CURRENT_TIMESTAMP,
+                delivery_attempts=delivery_attempts+1
+            WHERE label=?
+        """, (label,))
+        await conn.commit()
+        return dict(row)
+
+
+async def save_invite_link(label: str, link: str):
+    async with aiosqlite.connect(config.DB_PATH) as conn:
+        await conn.execute(
+            "UPDATE payments SET invite_link=? WHERE label=?", (link, label)
+        )
+        await conn.commit()
+
+
+async def mark_delivery_sent(label: str):
+    async with aiosqlite.connect(config.DB_PATH) as conn:
+        await conn.execute("""
+            UPDATE payments SET delivery_status='sent',
+                delivery_sent_at=CURRENT_TIMESTAMP, last_delivery_error=NULL
+            WHERE label=? AND delivery_status='sending'
+        """, (label,))
+        await conn.commit()
+
+
+async def mark_delivery_failed(label: str, error: str):
+    async with aiosqlite.connect(config.DB_PATH) as conn:
+        await conn.execute("""
+            UPDATE payments SET delivery_status='failed', last_delivery_error=?
+            WHERE label=? AND delivery_status='sending'
+        """, (error[:300], label))
+        await conn.commit()
+
+
+async def get_pending_deliveries(limit: int = 10):
+    async with aiosqlite.connect(config.DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        cur = await conn.execute("""
+            SELECT * FROM payments WHERE status IN ('completed','success')
+                AND delivery_attempts < 5
+                AND (
+                    delivery_status IN ('pending','failed')
+                    OR (delivery_status='sending'
+                        AND datetime(delivery_started_at, '+2 minutes') <= CURRENT_TIMESTAMP)
+                )
+            ORDER BY completed_at ASC LIMIT ?
+        """, (limit,))
+        return [dict(row) for row in await cur.fetchall()]
+
+
+async def get_pending_for_reconciliation(limit: int = 10):
+    async with aiosqlite.connect(config.DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        cur = await conn.execute("""
+            SELECT * FROM payments WHERE status='pending'
+                AND created_at >= datetime('now', '-7 days')
+                AND created_at <= datetime('now', '-30 seconds')
+                AND (
+                    last_checked_at IS NULL
+                    OR last_checked_at <= datetime('now', '-5 minutes')
+                )
+            ORDER BY COALESCE(last_checked_at, '1970-01-01') ASC, id DESC LIMIT ?
+        """, (limit,))
+        return [dict(row) for row in await cur.fetchall()]
+
+
+async def mark_payment_checked(label: str):
+    async with aiosqlite.connect(config.DB_PATH) as conn:
+        await conn.execute(
+            "UPDATE payments SET last_checked_at=CURRENT_TIMESTAMP WHERE label=?",
+            (label,)
+        )
+        await conn.commit()
 
 
 async def get_payment_by_label(label: str):
