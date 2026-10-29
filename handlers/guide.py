@@ -130,6 +130,11 @@ async def initiate_payment(callback: CallbackQuery, bot: Bot):
             )
         return
 
+    if not config.PAYMENTS_READY:
+        await callback.answer()
+        await callback.message.answer("⚠️ Оплата временно недоступна. Напиши @basefrom50man.")
+        return
+
     label = generate_payment_label(user_id)
     await db.create_payment(
         user_id=user_id,
