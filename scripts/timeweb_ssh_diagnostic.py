@@ -135,6 +135,15 @@ def main():
                 "disk free space": "df -h /opt/bot | tail -n 1 | awk '{print $4 \" free; \" $5 \" used\"}'",
                 "recent bot log error count": "if test -f /opt/bot/data/bot.log; then tail -n 300 /opt/bot/data/bot.log | grep -Eic 'ERROR|Traceback|Exception|CRITICAL' || true; else echo log-not-found; fi",
                 "recent systemd journal error count": "journalctl -u basefrom50bot.service --no-pager -n 300 2>/dev/null | grep -Eic 'ERROR|Traceback|Exception|CRITICAL|Failed' || true",
+                "firewall rules": "ufw status 2>/dev/null | head -n 20 || true",
+                "bot-related processes": "ps -eo comm= | grep -E 'python|caddy|nginx' | sort | uniq -c | head -n 15 || true",
+                "repo tracked modifications count": "git -C /opt/bot status --porcelain --untracked-files=no | wc -l",
+                "repo untracked file count": "git -C /opt/bot ls-files --others --exclude-standard | wc -l",
+                "requirements present": "test -f /opt/bot/requirements.txt && echo yes || echo no",
+                "local main.py checksum": "sha256sum /opt/bot/main.py | cut -c 1-20",
+                "sqlite database size": "stat -c '%s bytes' /opt/bot/data/bot.db",
+                "log error categories": "python3 -c 'from pathlib import Path; import re; p=Path(\"/opt/bot/data/bot.log\"); a=p.read_text(errors=\"replace\").splitlines()[-600:] if p.exists() else []; tags=(\"ModuleNotFoundError\",\"ImportError\",\"ConnectionError\",\"ClientConnectorError\",\"Unauthorized\",\"Conflict\",\"Traceback\",\"ERROR\",\"PermissionError\",\"YOOMONEY\"); print(\" \".join(t+\"=\"+str(sum(t.lower() in s.lower() for s in a)) for t in tags))' 2>/dev/null || echo check-unavailable",
+                "SQLite tables count": "python3 -c 'import sqlite3; c=sqlite3.connect(\"file:/opt/bot/data/bot.db?mode=ro\",uri=True); print(len(c.execute(\"SELECT name FROM sqlite_master WHERE type=\\\'table\\\'\").fetchall())); c.close()' 2>/dev/null || echo check-unavailable",
             }
             for title, command in checks.items():
                 try:
