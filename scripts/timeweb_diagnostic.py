@@ -71,10 +71,15 @@ def main():
         print(f"Target server: {SERVER_NAME}")
         print(f"Server ID: {server_id}")
         print(f"Status: {server.get('status', 'unknown')}")
+        print(f"Server API fields: {', '.join(sorted(server.keys()))}")
         print(f"OS: {server.get('os', 'not reported') if isinstance(server.get('os'), str) else 'not reported'}")
 
         ips = get(f"/api/v1/servers/{server_id}/ips")
+        print(f"IP API fields: {', '.join(sorted(ips.keys()))}")
         ip_items = ips.get("ips", [])
+        print(f"IP collection type: {type(ip_items).__name__}")
+        if isinstance(ip_items, list) and ip_items and isinstance(ip_items[0], dict):
+            print(f"IP item fields: {', '.join(sorted(ip_items[0].keys()))}")
         ipv4 = []
         for item in ip_items if isinstance(ip_items, list) else []:
             if not isinstance(item, dict):
@@ -83,13 +88,22 @@ def main():
             if isinstance(address, str) and "." in address and ":" not in address:
                 ipv4.append(address)
         print(f"IPv4 addresses reported by API: {len(ipv4)}")
+        # Public IP independently confirmed by owner in Timeweb screenshot.
+        if not ipv4:
+            ipv4 = ["5.129.247.209"]
+            print("Using public IPv4 supplied by server owner for connectivity check")
         for ip in ipv4[:2]:
             print(f"External TCP connectivity to server {ip}:")
             for port in (22, 80, 443, 8080):
                 print(f"  TCP {port}: {'open' if is_open(ip, port) else 'closed/filtered'}")
 
         try:
-            disks = get(f"/api/v1/servers/{server_id}/disks").get("disks", [])
+            disk_payload = get(f"/api/v1/servers/{server_id}/disks")
+            print(f"Disk API fields: {', '.join(sorted(disk_payload.keys()))}")
+            disks = disk_payload.get("disks", [])
+            print(f"Disk collection type: {type(disks).__name__}")
+            if isinstance(disks, list) and disks and isinstance(disks[0], dict):
+                print(f"Disk item fields: {', '.join(sorted(disks[0].keys()))}")
             print(f"Attached disks: {len(disks) if isinstance(disks, list) else 'unknown'}")
             for disk in disks[:4] if isinstance(disks, list) else []:
                 disk_id = disk.get("id") if isinstance(disk, dict) else None
