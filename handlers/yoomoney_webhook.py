@@ -43,9 +43,10 @@ async def handle_yoomoney_notify(request: web.Request) -> web.Response:
             logger.warning("YooMoney duplicate operation or order mismatch")
             return web.Response(text="duplicate operation")
 
-        await db.log_event(payment["user_id"], "guide_purchased_webhook", {
-            "label": label, "operation_id": operation_id,
-        })
+        if confirmed.get("_newly_confirmed"):
+            await db.log_event(payment["user_id"], "guide_purchased_webhook", {
+                "label": label, "operation_id": operation_id,
+            })
 
         # Ошибку Telegram не превращаем в потерю оплаты: состояние уже
         # сохранено, фоновый worker повторит выдачу доступа.
