@@ -41,7 +41,9 @@ class Config:
     YOOMONEY_WALLET: str = os.getenv("YOOMONEY_WALLET", "4100118793697883")
     YOOMONEY_TOKEN: str = os.getenv("YOOMONEY_TOKEN", "")
     YOOMONEY_SECRET: str = os.getenv("YOOMONEY_SECRET", "")
-    # Цены — читается из Railway переменной PRICE_ULTIMATE_GUIDE
+    # Публичная ссылка на оферту; до публикации оставь пустой.
+    OFFER_URL: str = os.getenv("OFFER_URL", "").strip()
+    # Цены — читается из переменной PRICE_ULTIMATE_GUIDE
     PRICE_ULTIMATE_GUIDE: int = int(os.getenv("PRICE_ULTIMATE_GUIDE", "1990"))
     # Курс доллара для расчёта доставки (3.5$/кг)
     DOLLAR_RATE: float = float(os.getenv("DOLLAR_RATE", "80.5"))
