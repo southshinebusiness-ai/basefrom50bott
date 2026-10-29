@@ -167,6 +167,15 @@ async def check_payment(callback: CallbackQuery, bot: Bot):
     payment = await db.get_latest_payment(user_id)
     user = await db.get_user(user_id)
 
+    # Восстановление старой записи: деньги подтверждены в БД,
+    # но флаг пользователя мог не сохраниться после сбоя процесса.
+    if (
+        payment and payment.get("status") in ("completed", "success")
+        and payment.get("operation_id") and not (user and user.get("purchased_guide"))
+    ):
+        await db.confirm_payment(payment["label"], payment["operation_id"])
+        user = await db.get_user(user_id)
+
     # Ранее купленный гайд, в том числе вручную выданный доступ.
     if user and user.get("purchased_guide"):
         if payment and payment.get("status") in ("completed", "success") and (
