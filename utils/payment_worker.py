@@ -26,10 +26,11 @@ async def reconcile_payment(bot: Bot, payment: dict) -> bool:
     if not confirmed:
         logger.warning("Reconciliation rejected duplicate operation for %s", payment["label"])
         return False
-    await db.log_event(payment["user_id"], "guide_purchased_reconciled", {
-        "label": payment["label"],
-        "operation_id": str(operation["operation_id"]),
-    })
+    if confirmed.get("_newly_confirmed"):
+        await db.log_event(payment["user_id"], "guide_purchased_reconciled", {
+            "label": payment["label"],
+            "operation_id": str(operation["operation_id"]),
+        })
     await deliver_paid_access(bot, payment["label"])
     return True
 
