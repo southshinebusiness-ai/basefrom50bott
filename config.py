@@ -58,6 +58,8 @@ class Config:
     TIKTOK_LINK: str = os.getenv("TIKTOK_LINK", "")
     # База данных: Railway Volume -> <mount>/bot.db, локально -> data/bot.db
     DB_PATH: str = _db_path()
+    # HTTP-сервер доступен только локально, публичный HTTPS отдаёт reverse proxy.
+    WEB_BIND_HOST: str = os.getenv("WEB_BIND_HOST", "127.0.0.1")
     # Порт для веб-сервера
     PORT: int = int(os.getenv("PORT", "8080"))
 
