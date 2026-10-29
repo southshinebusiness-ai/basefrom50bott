@@ -25,6 +25,11 @@ async def handle_join_request(update: ChatJoinRequest):
     user_id = update.from_user.id
     chat_id = update.chat.id
 
+    # При оплате через Tribute заявки обрабатывает сам Tribute.
+    # Нельзя отклонять покупателей, отсутствующих в нашей таблице YooMoney.
+    if config.TRIBUTE_PAYMENT_URL:
+        return
+
     # Обрабатываем только запросы в наш закрытый канал
     if chat_id != config.PRIVATE_CHANNEL_ID:
         return
