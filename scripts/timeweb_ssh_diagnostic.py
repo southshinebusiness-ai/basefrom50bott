@@ -1,5 +1,7 @@
 """Read-only SSH probe of the owner's Timeweb server.
 
+Rerun after the owner configured the protected SSH password secret.
+
 The password, if available from Timeweb API, is kept only in process memory.
 No credentials, .env contents, payment records, or application logs are printed.
 This never changes the remote server. The first SSH host key is trust-on-first-use;
