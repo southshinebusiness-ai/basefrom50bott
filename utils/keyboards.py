@@ -137,7 +137,8 @@ def calc_result_buttons() -> InlineKeyboardMarkup:
 def guide_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text=marketing_texts.BTN_GUIDE_BUY,
+            text=(f"💎ЗАБРАТЬ ДОСТУП — {config.PRICE_ULTIMATE_GUIDE:,} ₽💎".replace(",", " ")
+                  if config.TRIBUTE_PAYMENT_URL else marketing_texts.BTN_GUIDE_BUY),
             callback_data="guide_buy"
         )],
         [InlineKeyboardButton(
@@ -160,4 +161,11 @@ def buyout_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=texts.BTN_WRITE_TO_OWNER, url=config.PERSONAL_LINK)],
         [InlineKeyboardButton(text=texts.BTN_BACK_MAIN, callback_data="main_menu")],
+    ])
+
+def tribute_payment_buttons(pay_url: str) -> InlineKeyboardMarkup:
+    """Пилот Tribute: кнопка проверки YooMoney здесь не работает."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💳 ОПЛАТИТЬ ЧЕРЕЗ TRIBUTE", url=pay_url)],
+        [InlineKeyboardButton(text=texts.BTN_BACK, callback_data="guide")],
     ])
