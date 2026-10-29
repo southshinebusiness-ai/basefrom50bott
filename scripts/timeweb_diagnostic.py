@@ -72,11 +72,22 @@ def main():
         print(f"Server ID: {server_id}")
         print(f"Status: {server.get('status', 'unknown')}")
         print(f"Server API fields: {', '.join(sorted(server.keys()))}")
-        print(f"OS: {server.get('os', 'not reported') if isinstance(server.get('os'), str) else 'not reported'}")
+        print(f"OS metadata type: {type(server.get('os')).__name__}")
+        print(f"Root password SSH allowed: {server.get('is_allow_root_ssh_pass')}")
+        password = server.get("root_pass")
+        print(f"Root password present in API: {isinstance(password, str) and bool(password.strip())}")
+        print(f"SSH management enabled: {server.get('is_master_ssh')}")
+        for field in ("networks", "disks"):
+            value = server.get(field)
+            print(f"Server {field} type: {type(value).__name__}")
+            if isinstance(value, list):
+                print(f"Server {field} entries: {len(value)}")
+                if value and isinstance(value[0], dict):
+                    print(f"Server {field} item fields: {', '.join(sorted(value[0].keys()))}")
 
         ips = get(f"/api/v1/servers/{server_id}/ips")
         print(f"IP API fields: {', '.join(sorted(ips.keys()))}")
-        ip_items = ips.get("ips", [])
+        ip_items = ips.get("server_ips", [])
         print(f"IP collection type: {type(ip_items).__name__}")
         if isinstance(ip_items, list) and ip_items and isinstance(ip_items[0], dict):
             print(f"IP item fields: {', '.join(sorted(ip_items[0].keys()))}")
@@ -100,7 +111,7 @@ def main():
         try:
             disk_payload = get(f"/api/v1/servers/{server_id}/disks")
             print(f"Disk API fields: {', '.join(sorted(disk_payload.keys()))}")
-            disks = disk_payload.get("disks", [])
+            disks = disk_payload.get("server_disks", [])
             print(f"Disk collection type: {type(disks).__name__}")
             if isinstance(disks, list) and disks and isinstance(disks[0], dict):
                 print(f"Disk item fields: {', '.join(sorted(disks[0].keys()))}")
