@@ -37,6 +37,8 @@ class Config:
     MAIN_CHANNEL_USERNAME: str = os.getenv("MAIN_CHANNEL_USERNAME", "basefrom50")
     # ID закрытого канала с материалами ULTIMATE GUIDE
     PRIVATE_CHANNEL_ID: int = int(os.getenv("PRIVATE_CHANNEL_ID", "-1003552231781"))
+    # Payment checkout stays disabled until HTTPS and YooMoney notifications are verified.
+    PAYMENTS_READY: bool = os.getenv("PAYMENTS_READY", "0").strip().lower() in ("1", "true", "yes")
     # YooMoney
     YOOMONEY_WALLET: str = os.getenv("YOOMONEY_WALLET", "4100118793697883")
     YOOMONEY_TOKEN: str = os.getenv("YOOMONEY_TOKEN", "")
