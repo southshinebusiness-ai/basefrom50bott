@@ -22,6 +22,12 @@ from config import config
 router = Router()
 
 
+def priced_text(text: str) -> str:
+    """Цена в описании должна совпадать с суммой реального платежа."""
+    price = f"{config.PRICE_ULTIMATE_GUIDE:,}".replace(",", " ")
+    return text.replace("1 990 ₽", f"{price} ₽")
+
+
 def offer_notice() -> str:
     """Ненавязчивая ссылка на опубликованную оферту перед покупкой."""
     url = config.OFFER_URL
@@ -76,7 +82,7 @@ async def send_guide_screen(bot: Bot, chat_id: int, user_id: int, state: FSMCont
 
     await bot.send_message(
         chat_id,
-        marketing_texts.GUIDE_DESCRIPTION + (
+        priced_text(marketing_texts.GUIDE_DESCRIPTION) + (
             "\n\n" + offer_notice() if offer_notice() else ""
         ),
         reply_markup=guide_menu(),
@@ -143,7 +149,7 @@ async def initiate_payment(callback: CallbackQuery, bot: Bot):
     )
 
     await callback.message.edit_text(
-        texts.GUIDE_BUY + (
+        priced_text(texts.GUIDE_BUY) + (
             "\n\n" + offer_notice() if offer_notice() else ""
         ),
         reply_markup=payment_buttons(pay_url),
