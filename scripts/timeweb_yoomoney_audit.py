@@ -19,8 +19,10 @@ try:
         "Service status":"systemctl is-active basefrom50bot.service || true",
         "Recent service restarts":"systemctl show basefrom50bot.service -p NRestarts -p ActiveEnterTimestamp",
         "YooMoney notification requests last 30m":"journalctl -u nginx --since '-30 min' --no-pager -q 2>/dev/null | grep -c '/yoomoney/notify' || true",
-        "Nginx callback status counts":"find /var/log/nginx -maxdepth 1 -name 'access.log*' -mmin -60 -type f -print0 | xargs -0 -r grep -h '/yoomoney/notify' | tail -n 100 | awk '{print $9}' | sort | uniq -c || true",
-        "Recent callback status codes":"find /var/log/nginx -maxdepth 1 -name 'access.log*' -mmin -60 -type f -print0 | xargs -0 -r grep -h '/yoomoney/notify' | tail -n 12 | awk '{print $4,$5,$6,$7,$9}' || true",
+        "Nginx log files": "find /var/log/nginx -maxdepth 1 -name 'access.log*' -type f -printf '%f %s bytes\\n' | head -n 8 || true",
+        "Nginx callback status counts":"find /var/log/nginx -maxdepth 1 -name 'access.log*' -mmin -180 -type f -print0 | xargs -0 -r grep -h '/yoomoney/notify' | tail -n 100 | awk '{print $9}' | sort | uniq -c || true",
+        "Recent callback status codes":"find /var/log/nginx -maxdepth 1 -name 'access.log*' -mmin -180 -type f -print0 | xargs -0 -r grep -h '/yoomoney/notify' | tail -n 12 | awk '{print $4,$5,$6,$7,$9}' || true",
+        "Nginx recent request status summary": "find /var/log/nginx -maxdepth 1 -name 'access.log*' -mmin -180 -type f -print0 | xargs -0 -r grep -hE '(/health|/yoomoney/notify)' | tail -n 25 | awk '{print $4,$5,$7,$9}' || true",
         "YooMoney payment flag":"grep '^PAYMENTS_READY=' /opt/basefrom50-stage/.env || true",
         "Public webhook route":"grep -Rh 'location = /yoomoney/notify' /etc/nginx/sites-enabled 2>/dev/null | head -n 1 || true",
     }
