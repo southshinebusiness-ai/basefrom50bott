@@ -28,6 +28,7 @@ try:
         "Recent callback status codes":"find /var/log/nginx -maxdepth 1 -name 'access.log*' -mmin -180 -type f -print0 | xargs -0 -r grep -h '/yoomoney/notify' | tail -n 12 | awk '{print $4,$5,$6,$7,$9}' || true",
         "Nginx recent request status summary": "find /var/log/nginx -maxdepth 1 -name 'access.log*' -mmin -180 -type f -print0 | xargs -0 -r grep -hE '(/health|/yoomoney/notify)' | tail -n 25 | awk '{print $4,$5,$7,$9}' || true",
         "All nginx callback counts": "find /var/log/nginx -maxdepth 1 -type f -name '*.log' -print0 | xargs -0 -r grep -h '/yoomoney/notify' | tail -n 25 | awk '{print $4,$5,$7,$9}' || true",
+        "YooMoney integration variables": "awk -F= '/^(YOOMONEY_SECRET|YOOMONEY_TOKEN|YOOMONEY_WALLET|PRICE_ULTIMATE_GUIDE|BOT_TOKEN|PRIVATE_CHANNEL_ID)=/ {key=$1; val=substr($0,length(key)+2); if(key ~ /SECRET|TOKEN|WALLET|CHANNEL/) {print key, (length(val)>0 ? \"configured\" : \"missing\")} else print key,val}' /opt/basefrom50-stage/.env | sort",
         "YooMoney payment flag":"grep '^PAYMENTS_READY=' /opt/basefrom50-stage/.env || true",
         "Public webhook route":"grep -Rh 'location = /yoomoney/notify' /etc/nginx/sites-enabled 2>/dev/null | head -n 1 || true",
     }
