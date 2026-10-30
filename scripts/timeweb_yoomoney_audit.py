@@ -1,3 +1,4 @@
+# Check receipt of repeated YooMoney provider test after callback logging enabled.
 """Read-only status of YooMoney notifications received by Nginx on Timeweb."""
 import base64
 import hashlib
