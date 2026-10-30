@@ -1,4 +1,4 @@
-"""Create a root-only on-server backup before changing production.
+"""Create a root-only on-server backup before the full-price production test.
 
 Credentials come from GitHub encrypted Actions secrets, never from code.
 Backup stays on the Timeweb server; no customer data is uploaded to GitHub.
