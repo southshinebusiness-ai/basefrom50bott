@@ -1,0 +1,25 @@
+name: Timeweb YooMoney notification audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/yoomoney-payments-reliability-2026
+    paths:
+      - scripts/timeweb_yoomoney_audit.py
+      - .github/workflows/timeweb-yoomoney-audit.yml
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install --quiet 'paramiko>=3.4,<5'
+      - name: Read-only webhook receipt and service audit
+        env:
+          TIMEWEB_SSH_PASSWORD: ${{ secrets.TIMEWEB_SSH_PASSWORD }}
+        run: python scripts/timeweb_yoomoney_audit.py
