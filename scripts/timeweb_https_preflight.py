@@ -28,6 +28,10 @@ try:
         "Bot HTTP": "curl -fsS --max-time 3 http://127.0.0.1:8080/health || true",
         "Caddy installed": "command -v caddy || echo not-installed",
         "Caddy unit": "systemctl is-active caddy.service || true",
+        "Nginx unit": "systemctl is-active nginx.service || true",
+        "Apache unit": "systemctl is-active apache2.service || true",
+        "Port owners": "ss -ltnp '( sport = :80 or sport = :443 )' | tail -n +2 | cut -c1-170",
+        "Nginx site names": "grep -RhE 'server_name|ssl_certificate ' /etc/nginx/sites-enabled /etc/nginx/conf.d 2>/dev/null | head -n 12 || true",
         "Port 80/443 listeners": "ss -ltn '( sport = :80 or sport = :443 )' | tail -n +2",
         "Available disk": "df -h / | tail -n 1 | awk '{print $4}'",
         "DNS from server": "getent ahostsv4 5-129-247-209.sslip.io | head -n 1 | awk '{print $1}'",
@@ -42,3 +46,14 @@ try:
         print(label + ":", out[:250] or "(none)")
 finally:
     t.close()
+
+from urllib.request import urlopen
+from urllib.error import HTTPError
+for endpoint in ("https://" + DNS_NAME + "/health", "http://" + DNS_NAME + "/health"):
+    try:
+        with urlopen(endpoint, timeout=8) as response:
+            print("Public endpoint:", endpoint.split("://")[0], response.status, response.read(100).decode(errors="replace"))
+    except HTTPError as error:
+        print("Public endpoint:", endpoint.split("://")[0], "HTTP", error.code)
+    except Exception as error:
+        print("Public endpoint:", endpoint.split("://")[0], type(error).__name__)
