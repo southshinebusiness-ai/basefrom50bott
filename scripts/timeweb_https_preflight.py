@@ -32,6 +32,9 @@ try:
         "Apache unit": "systemctl is-active apache2.service || true",
         "Port owners": "ss -ltnp '( sport = :80 or sport = :443 )' | tail -n +2 | cut -c1-170",
         "Nginx site names": "grep -RhE 'server_name|ssl_certificate ' /etc/nginx/sites-enabled /etc/nginx/conf.d 2>/dev/null | head -n 12 || true",
+        "Nginx route configuration": "grep -RhE 'location |proxy_pass|return 30|listen ' /etc/nginx/sites-enabled /etc/nginx/conf.d 2>/dev/null | head -n 25 || true",
+        "Certificate SAN and validity": "openssl x509 -in /etc/letsencrypt/live/basefrom50-ip/fullchain.pem -noout -dates -ext subjectAltName 2>/dev/null || true",
+        "Certificate renewal": "systemctl list-timers --all --no-pager | grep -E 'certbot|letsencrypt' | head -n 2 || true",
         "Port 80/443 listeners": "ss -ltn '( sport = :80 or sport = :443 )' | tail -n +2",
         "Available disk": "df -h / | tail -n 1 | awk '{print $4}'",
         "DNS from server": "getent ahostsv4 5-129-247-209.sslip.io | head -n 1 | awk '{print $1}'",
@@ -57,3 +60,9 @@ for endpoint in ("https://" + DNS_NAME + "/health", "http://" + DNS_NAME + "/hea
         print("Public endpoint:", endpoint.split("://")[0], "HTTP", error.code)
     except Exception as error:
         print("Public endpoint:", endpoint.split("://")[0], type(error).__name__)
+
+try:
+    with urlopen("https://" + HOST + "/health", timeout=10) as response:
+        print("HTTPS IP certificate and health:", response.status, response.read(100).decode(errors="replace"))
+except Exception as error:
+    print("HTTPS IP certificate and health:", type(error).__name__)
