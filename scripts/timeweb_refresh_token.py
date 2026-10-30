@@ -94,7 +94,7 @@ def main():
             raise RuntimeError('SSH host key mismatch')
         transport.auth_password('root', password, fallback=False)
         sftp = paramiko.SFTPClient.from_transport(transport)
-        with sftp.open(remote_path, 'x') as out:
+        with sftp.open(remote_path, 'wx') as out:
             out.write(REMOTE_SCRIPT)
         sftp.chmod(remote_path, 0o600)
         channel = transport.open_session(timeout=15)
@@ -122,6 +122,8 @@ def main():
         if sftp is not None:
             try:
                 sftp.remove(remote_path)
+            except OSError:
+                pass
             finally:
                 sftp.close()
         transport.close()
