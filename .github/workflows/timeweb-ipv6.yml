@@ -1,0 +1,24 @@
+name: Timeweb IPv6 transport rollout
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/yoomoney-payments-reliability-2026
+    paths:
+      - .github/workflows/timeweb-ipv6.yml
+
+permissions:
+  contents: read
+
+jobs:
+  rollout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install --quiet paramiko
+      - name: Apply network reliability fix
+        env:
+          TIMEWEB_SSH_PASSWORD: ${{ secrets.TIMEWEB_SSH_PASSWORD }}
+        run: python scripts/timeweb_deploy_ipv6.py

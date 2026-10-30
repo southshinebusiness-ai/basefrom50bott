@@ -80,10 +80,10 @@ async def get_full_stats() -> dict:
         purchased     = await one("SELECT COUNT(*) FROM users WHERE purchased_guide = 1")
 
         # Выручка
-        rev_total = await one("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status='success'")
-        rev_today = await one("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status='success' AND created_at >= ?", today)
-        rev_week  = await one("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status='success' AND created_at >= ?", week)
-        rev_month = await one("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status='success' AND created_at >= ?", month)
+        rev_total = await one("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status IN ('completed','success')")
+        rev_today = await one("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status IN ('completed','success') AND created_at >= ?", today)
+        rev_week  = await one("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status IN ('completed','success') AND created_at >= ?", week)
+        rev_month = await one("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status IN ('completed','success') AND created_at >= ?", month)
 
         # Активность сегодня
         active_today = await one("SELECT COUNT(DISTINCT user_id) FROM events WHERE created_at >= ?", today)
