@@ -39,3 +39,9 @@ print("YooMoney empty test notification: 200 test ok")
 code, body = post(b"notification_type=p2p-incoming&label=smoke-test-invalid&sign=invalid")
 assert code == 403, (code, body)
 print("YooMoney forged notification: 403 rejected")
+
+for index in range(8):
+    with urllib.request.urlopen(base + "/health", timeout=10) as response:
+        assert response.status == 200 and response.read(100).decode().strip() == "ok"
+    time.sleep(1)
+print("Post-fix HTTPS stability: 8 of 8 health checks succeeded")
