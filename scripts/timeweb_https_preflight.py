@@ -25,7 +25,9 @@ try:
         raise SystemExit("SSH authentication failed")
     checks = {
         "Bot service": "systemctl is-active basefrom50bot.service || true",
-        "Bot restart count": "systemctl show basefrom50bot.service -p NRestarts -p ExecMainStatus -p ActiveState -p SubState --no-pager",
+        "Bot restart count": "systemctl show basefrom50bot.service -p NRestarts -p ExecMainStatus -p ActiveState -p SubState -p ActiveEnterTimestamp --no-pager",
+        "Telegram network errors": "journalctl -u basefrom50bot.service --no-pager -n 200 2>/dev/null | grep 'TelegramNetworkError:' | sed -E 's#https?://[^ ]+#URL_REDACTED#g' | tail -n 4 || true",
+        "Telegram egress": "curl -4 -sS --max-time 5 -o /dev/null -w 'status=%{http_code}' https://api.telegram.org || true",
         "Bot recent error categories": "journalctl -u basefrom50bot.service --no-pager -n 150 2>/dev/null | grep -Eo '(Telegram[A-Za-z]+Error|OperationalError|ConnectionError|ImportError|RuntimeError|FileNotFoundError|PermissionError|TimeoutError|Error|Exception):' | sort | uniq -c | head -n 10 || true",
         "Nginx recent error categories": "tail -n 100 /var/log/nginx/error.log 2>/dev/null | grep -Eo 'connect\\(\\) failed|upstream timed out|SSL_do_handshake\\(\\) failed' | sort | uniq -c || true",
         "Bot HTTP": "curl -fsS --max-time 3 http://127.0.0.1:8080/health || true",
