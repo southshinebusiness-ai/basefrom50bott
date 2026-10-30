@@ -25,9 +25,9 @@ from handlers.yoomoney_webhook import handle_yoomoney_notify
 from utils.payment_worker import maintenance_loop
 
 
-def make_ipv4_session() -> AiohttpSession:
+def make_ipv6_session() -> AiohttpSession:
     session = AiohttpSession()
-    session._connector_init["family"] = socket.AF_INET
+    session._connector_init["family"] = socket.AF_INET6
     return session
 
 
@@ -61,7 +61,7 @@ async def main():
     # Создаём бота
     bot = Bot(
         token=config.BOT_TOKEN,
-        session=make_ipv4_session(),
+        session=make_ipv6_session(),
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
 
