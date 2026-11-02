@@ -25,9 +25,10 @@ from config import config
 
 router = Router()
 
-# Historical snapshot from the pre-Timeweb bot database on 2026-11-02.
-# This is NOT merged into the live SQLite user table.
+# Manually confirmed historical baseline before the Timeweb database.
+# These values affect only the /stats presentation, not users or payments.
 LEGACY_USERS_SNAPSHOT = 95
+LEGACY_SALES_SNAPSHOT = 1
 
 
 def is_admin(user_id: int) -> bool:
@@ -49,14 +50,18 @@ def pct(part: int, total: int) -> str:
 def fmt(n: int) -> str:
     return f"{n:,}".replace(",", " ")
 
-def format_audience_counts(timeweb_users: int, legacy_users: int = LEGACY_USERS_SNAPSHOT) -> str:
-    """Show two independent user counts without pretending they are disjoint."""
-    return (
-        f"  В базе Timeweb: <b>{fmt(timeweb_users)}</b>\n"
-        f"  До переезда (срез 02.11): <b>{fmt(legacy_users)}</b>\n"
-        "  <i>Базы могут пересекаться; точное общее число неизвестно.</i>\n"
-    )
+def with_historical_totals(stats: dict) -> dict:
+    """Keep the original /stats layout, including the historical baseline.
 
+    Historical identities may overlap with the new Timeweb database.
+    This is an owner-requested displayed estimate, not a deduplicated count.
+    Do not modify SQLite or payment records.
+    """
+    return {
+        **stats,
+        "total": stats["total"] + LEGACY_USERS_SNAPSHOT,
+        "purchased": stats["purchased"] + LEGACY_SALES_SNAPSHOT,
+    }
 
 async def get_full_stats() -> dict:
     """Собирает расширенную статистику из БД."""
@@ -117,13 +122,13 @@ async def cmd_stats(message: Message):
     if not is_admin(message.from_user.id):
         return
 
-    s = await get_full_stats()
+    s = with_historical_totals(await get_full_stats())
 
     text = (
         "📊 <b>СТАТИСТИКА БОТА</b>\n\n"
 
         "👥 <b>Пользователи</b>\n"
-        f"{format_audience_counts(s['total'])}"
+        f"  Всего: <b>{fmt(s['total'])}</b>\n"
         f"  Сегодня пришли: <b>+{s['new_today']}</b>\n"
         f"  За неделю: <b>+{s['new_week']}</b>\n"
         f"  За месяц: <b>+{s['new_month']}</b>\n"
