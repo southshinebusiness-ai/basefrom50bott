@@ -20,11 +20,11 @@ for proc in pathlib.Path("/proc").iterdir():
     if not proc.name.isdigit():
         continue
     try:
-        args = (proc/"cmdline").read_bytes().replace(b"\\0",b" ").decode(errors="replace")
+        args = (proc/"cmdline").read_bytes().replace(bytes([0]),b" ").decode(errors="replace")
         if "main.py" not in args or ("basefrom50" not in args and "/opt/bot" not in args):
             continue
         cwd = os.readlink(proc/"cwd")
-        env = dict(x.split("=",1) for x in (proc/"environ").read_bytes().decode(errors="replace").split("\\0") if "=" in x)
+        env = dict(x.split("=",1) for x in (proc/"environ").read_bytes().decode(errors="replace").split(chr(0)) if "=" in x)
         print("pid:",proc.name,"cwd:",cwd,"command main.py:",args[:220])
         print("db env override:",env.get("DB_PATH","(none)"),"volume:",bool(env.get("RAILWAY_VOLUME_MOUNT_PATH")))
     except (OSError,PermissionError):
@@ -66,7 +66,7 @@ for name in paths:
 print("== systemd service states ==")
 for service in ["basefrom50bot.service","bot.service","telegram-bot.service"]:
     result=subprocess.run(["systemctl","show",service,"-p","ActiveState","-p","MainPID","-p","FragmentPath"],capture_output=True,text=True,timeout=8)
-    print(service,result.stdout.strip().replace("\\n","; "))
+    print(service,result.stdout.strip().replace(chr(10),"; "))
 
 print("== Polling conflicts (past 72 hours) ==")
 r=subprocess.run(["journalctl","-u","basefrom50bot.service","--since","-72 hours","--no-pager","-q"],capture_output=True,text=True,timeout=15)
