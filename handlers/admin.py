@@ -25,6 +25,10 @@ from config import config
 
 router = Router()
 
+# Historical snapshot from the pre-Timeweb bot database on 2026-11-02.
+# This is NOT merged into the live SQLite user table.
+LEGACY_USERS_SNAPSHOT = 95
+
 
 def is_admin(user_id: int) -> bool:
     return user_id == config.ADMIN_ID
@@ -44,6 +48,14 @@ def pct(part: int, total: int) -> str:
 
 def fmt(n: int) -> str:
     return f"{n:,}".replace(",", " ")
+
+def format_audience_counts(timeweb_users: int, legacy_users: int = LEGACY_USERS_SNAPSHOT) -> str:
+    """Show two independent user counts without pretending they are disjoint."""
+    return (
+        f"  В базе Timeweb: <b>{fmt(timeweb_users)}</b>\n"
+        f"  До переезда (срез 02.11): <b>{fmt(legacy_users)}</b>\n"
+        "  <i>Базы могут пересекаться; точное общее число неизвестно.</i>\n"
+    )
 
 
 async def get_full_stats() -> dict:
@@ -111,7 +123,7 @@ async def cmd_stats(message: Message):
         "📊 <b>СТАТИСТИКА БОТА</b>\n\n"
 
         "👥 <b>Пользователи</b>\n"
-        f"  Всего: <b>{fmt(s['total'])}</b>\n"
+        f"{format_audience_counts(s['total'])}"
         f"  Сегодня пришли: <b>+{s['new_today']}</b>\n"
         f"  За неделю: <b>+{s['new_week']}</b>\n"
         f"  За месяц: <b>+{s['new_month']}</b>\n"
