@@ -56,6 +56,7 @@ def main():
             print("Unexpected API response: servers is not a list")
             return 1
         print(f"Timeweb API authenticated. Total cloud servers: {len(servers)}")
+        print("Running Timeweb servers:", sum(s.get("status") == "on" for s in servers if isinstance(s, dict)))
         matching = [
             s for s in servers
             if isinstance(s, dict) and s.get("name") == SERVER_NAME
