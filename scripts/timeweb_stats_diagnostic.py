@@ -103,6 +103,18 @@ conflicts=[line for line in lines if "Conflict:" in line or "terminated by other
 print("conflict count:",len(conflicts))
 print("last conflict:",conflicts[-1][:200] if conflicts else "(none)")
 print("recent polling starts:",sum("Polling started" in line for line in lines))
+
+print("== After token rotation: recent bot logs ==")
+p=subprocess.run(["journalctl","-u","basefrom50bot.service","--since","-3 minutes","--no-pager","-q"],capture_output=True,text=True,timeout=15)
+recent=p.stdout.splitlines()
+recent_conflicts=[line for line in recent if "TelegramConflictError" in line or "terminated by other getUpdates" in line]
+recent_invalid=[line for line in recent if "Unauthorized" in line or "Token is invalid" in line]
+recent_poll=[line for line in recent if "Polling started" in line or "Run polling for bot" in line or "Start polling" in line]
+print("Conflicts last 3 minutes:",len(recent_conflicts))
+print("Invalid-token errors last 3 minutes:",len(recent_invalid))
+print("Polling start messages last 3 minutes:",len(recent_poll))
+print("Latest bot log (sanitized):",recent[-1][:180] if recent else "(none)")
+
 """
 t = paramiko.Transport((HOST,22))
 try:
