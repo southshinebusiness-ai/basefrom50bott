@@ -72,10 +72,10 @@ def main():
             text = original.decode("utf-8")
             if len(re.findall(r"(?m)^BOT_TOKEN=", text)) != 1:
                 raise RuntimeError("Expected exactly one BOT_TOKEN in Timeweb .env; unchanged")
-            if not re.search(r"(?m)^PAYMENTS_READY=1\\s*$", text):
+            if not re.search(r"(?m)^PAYMENTS_READY=1\s*$", text):
                 raise RuntimeError("Unexpected payment configuration; server unchanged")
             replacement = re.sub(
-                r"(?m)^BOT_TOKEN=[^\\r\\n]*",
+                r"(?m)^BOT_TOKEN=[^\r\n]*",
                 lambda _: "BOT_TOKEN=" + token,
                 text,
                 count=1,
