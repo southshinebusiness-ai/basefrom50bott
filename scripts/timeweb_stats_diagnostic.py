@@ -115,6 +115,18 @@ print("Invalid-token errors last 3 minutes:",len(recent_invalid))
 print("Polling start messages last 3 minutes:",len(recent_poll))
 print("Latest bot log (sanitized):",recent[-1][:180] if recent else "(none)")
 
+print("== Current systemd process since token rotation ==")
+p=subprocess.run(["systemctl","show","basefrom50bot.service","-p","MainPID","--value"],capture_output=True,text=True,timeout=8)
+pid=p.stdout.strip()
+if pid.isdigit() and int(pid)>0:
+    j=subprocess.run(["journalctl","_PID="+pid,"--since","-15 minutes","--no-pager","-q"],capture_output=True,text=True,timeout=12)
+    active_lines=j.stdout.splitlines()
+    print("Current bot PID:",pid)
+    print("Current process conflict errors:",sum("TelegramConflictError" in line for line in active_lines))
+    print("Current process invalid-token errors:",sum("Unauthorized" in line or "Token is invalid" in line for line in active_lines))
+    print("Current process polling starts:",sum("Polling started" in line or "Run polling for bot" in line or "Start polling" in line for line in active_lines))
+
+
 """
 t = paramiko.Transport((HOST,22))
 try:
