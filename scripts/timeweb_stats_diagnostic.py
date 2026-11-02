@@ -68,6 +68,34 @@ for service in ["basefrom50bot.service","bot.service","telegram-bot.service"]:
     result=subprocess.run(["systemctl","show",service,"-p","ActiveState","-p","MainPID","-p","FragmentPath"],capture_output=True,text=True,timeout=8)
     print(service,result.stdout.strip().replace(chr(10),"; "))
 
+print("== All likely Telegram processes on this host ==")
+for proc in pathlib.Path("/proc").iterdir():
+    if not proc.name.isdigit():
+        continue
+    try:
+        args=(proc/"cmdline").read_bytes().replace(bytes([0]),b" ").decode(errors="replace")
+        if not args or proc.name == str(os.getpid()):
+            continue
+        if any(token in args.lower() for token in ("python","node","bot","telegram","polling","gunicorn","uvicorn")):
+            print("pid:",proc.name,"command:",args[:180].replace(chr(10)," "))
+    except (OSError,PermissionError):
+        pass
+
+print("== Additional runtime inventory ==")
+checks = [
+    ["systemctl","list-units","--type=service","--state=running","--no-legend","--plain"],
+    ["docker","ps","--format","{{.Names}} {{.Image}} {{.Status}}"],
+    ["pm2","list","--no-color"],
+    ["supervisorctl","status"],
+]
+for command in checks:
+    try:
+        p=subprocess.run(command,capture_output=True,text=True,timeout=10)
+        lines=[x for x in p.stdout.splitlines() if any(w in x.lower() for w in ("bot","python","node","docker","container","railway","telegram","pm2","supervisor"))]
+        print(command[0],":",lines[:15] if lines else "(no relevant entries)")
+    except (OSError,subprocess.TimeoutExpired):
+        print(command[0],": unavailable")
+
 print("== Polling conflicts (past 72 hours) ==")
 r=subprocess.run(["journalctl","-u","basefrom50bot.service","--since","-72 hours","--no-pager","-q"],capture_output=True,text=True,timeout=15)
 lines=r.stdout.splitlines()
