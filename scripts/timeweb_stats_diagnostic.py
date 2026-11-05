@@ -57,6 +57,13 @@ for name in paths:
         opened=db.execute("SELECT COUNT(DISTINCT user_id) FROM events WHERE event_type='view_guide'").fetchone()[0]
         initiated=db.execute("SELECT COUNT(DISTINCT user_id) FROM events WHERE event_type='payment_initiated'").fetchone()[0]
         rev=db.execute("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status IN ('completed','success')").fetchone()[0]
+        free_events = db.execute(
+            "SELECT event_type, COUNT(*), COUNT(DISTINCT user_id) "
+            "FROM events WHERE event_type IN "
+            "('free_guide_opened','free_guide_sent','free_guide_missing','received_pdfs','start') "
+            "GROUP BY event_type ORDER BY event_type"
+        ).fetchall()
+        print("Free-guide and start event totals (event, actions, unique users):", free_events)
         latest=db.execute("SELECT MAX(created_at) FROM events").fetchone()[0]
         print("file:",real,"users:",user_count,"buyers:",bought,"events:",events,"guide views:",opened,"initiated:",initiated,"revenue:",rev,"latest event:",latest)
         db.close()
