@@ -37,11 +37,15 @@ class Config:
     MAIN_CHANNEL_USERNAME: str = os.getenv("MAIN_CHANNEL_USERNAME", "basefrom50")
     # ID закрытого канала с материалами ULTIMATE GUIDE
     PRIVATE_CHANNEL_ID: int = int(os.getenv("PRIVATE_CHANNEL_ID", "-1003552231781"))
+    # Payment checkout stays disabled until HTTPS and YooMoney notifications are verified.
+    PAYMENTS_READY: bool = os.getenv("PAYMENTS_READY", "0").strip().lower() in ("1", "true", "yes")
     # YooMoney
     YOOMONEY_WALLET: str = os.getenv("YOOMONEY_WALLET", "4100118793697883")
     YOOMONEY_TOKEN: str = os.getenv("YOOMONEY_TOKEN", "")
     YOOMONEY_SECRET: str = os.getenv("YOOMONEY_SECRET", "")
-    # Цены — читается из Railway переменной PRICE_ULTIMATE_GUIDE
+    # Публичная ссылка на оферту; до публикации оставь пустой.
+    OFFER_URL: str = os.getenv("OFFER_URL", "").strip()
+    # Цены — читается из переменной PRICE_ULTIMATE_GUIDE
     PRICE_ULTIMATE_GUIDE: int = int(os.getenv("PRICE_ULTIMATE_GUIDE", "1990"))
     # Курс доллара для расчёта доставки (3.5$/кг)
     DOLLAR_RATE: float = float(os.getenv("DOLLAR_RATE", "80.5"))
@@ -54,6 +58,8 @@ class Config:
     TIKTOK_LINK: str = os.getenv("TIKTOK_LINK", "")
     # База данных: Railway Volume -> <mount>/bot.db, локально -> data/bot.db
     DB_PATH: str = _db_path()
+    # HTTP-сервер доступен только локально, публичный HTTPS отдаёт reverse proxy.
+    WEB_BIND_HOST: str = os.getenv("WEB_BIND_HOST", "127.0.0.1")
     # Порт для веб-сервера
     PORT: int = int(os.getenv("PORT", "8080"))
 

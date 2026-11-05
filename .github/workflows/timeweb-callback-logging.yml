@@ -1,0 +1,25 @@
+name: Timeweb YooMoney callback audit logging
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/yoomoney-payments-reliability-2026
+    paths:
+      - scripts/timeweb_enable_callback_logging.py
+      - .github/workflows/timeweb-callback-logging.yml
+
+permissions:
+  contents: read
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - run: python -m pip install --quiet 'paramiko>=3.4,<5'
+      - name: Enable callback-only Nginx access logging and verify
+        env:
+          TIMEWEB_SSH_PASSWORD: ${{ secrets.TIMEWEB_SSH_PASSWORD }}
+        run: python scripts/timeweb_enable_callback_logging.py

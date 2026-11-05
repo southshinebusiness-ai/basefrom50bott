@@ -5,6 +5,7 @@
 - HTTP web server (aiohttp) для приёма YooMoney webhook уведомлений
 """
 import asyncio
+from contextlib import suppress
 import logging
 import os
 import socket
@@ -21,11 +22,12 @@ from config import config
 from db import database
 from handlers import main_menu, start_rf, calculator, guide, simple, admin, join_request
 from handlers.yoomoney_webhook import handle_yoomoney_notify
+from utils.payment_worker import maintenance_loop
 
 
-def make_ipv4_session() -> AiohttpSession:
+def make_ipv6_session() -> AiohttpSession:
     session = AiohttpSession()
-    session._connector_init["family"] = socket.AF_INET
+    session._connector_init["family"] = socket.AF_INET6
     return session
 
 
@@ -59,7 +61,7 @@ async def main():
     # Создаём бота
     bot = Bot(
         token=config.BOT_TOKEN,
-        session=make_ipv4_session(),
+        session=make_ipv6_session(),
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
 
@@ -77,19 +79,23 @@ async def main():
     web_app = create_web_app(bot)
     runner = web.AppRunner(web_app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", config.PORT)
+    site = web.TCPSite(runner, config.WEB_BIND_HOST, config.PORT)
     await site.start()
-    logging.info(f"Веб-сервер запущен на порту {config.PORT}")
-    logging.info(f"YooMoney webhook: http://0.0.0.0:{config.PORT}/yoomoney/notify")
+    logging.info(f"Веб-сервер запущен на {config.WEB_BIND_HOST}:{config.PORT}")
+    logging.info(f"YooMoney webhook (local): http://{config.WEB_BIND_HOST}:{config.PORT}/yoomoney/notify")
 
     # Запускаем бота
-    await bot.delete_webhook(drop_pending_updates=True)
+    await bot.delete_webhook(drop_pending_updates=False)
     me = await bot.get_me()
     logging.info(f"Бот @{me.username} запущен. Polling started.")
 
+    maintenance_task = asyncio.create_task(maintenance_loop(bot))
     try:
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:
+        maintenance_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await maintenance_task
         await runner.cleanup()
         await bot.session.close()
 

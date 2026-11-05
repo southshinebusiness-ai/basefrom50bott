@@ -1,0 +1,22 @@
+name: Public HTTPS YooMoney webhook smoke test
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/yoomoney-payments-reliability-2026
+    paths:
+      - scripts/public_webhook_smoke.py
+      - .github/workflows/public-webhook-smoke.yml
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify HTTPS health and reject forged payments
+        run: python scripts/public_webhook_smoke.py

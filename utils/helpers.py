@@ -80,8 +80,10 @@ def calculate_cart_total(cart: list, yuan_rate: float) -> dict:
         "dollar_rate":        config.DOLLAR_RATE,
     }
 def generate_payment_label(user_id: int) -> str:
+    """Уникальная метка даже при двух кликах в одну секунду."""
+    import secrets
     import time
-    return f"bf50_{user_id}_{int(time.time())}"
+    return f"bf50_{user_id}_{int(time.time())}_{secrets.token_hex(4)}"
 
 
 def generate_yoomoney_link(amount: int, label: str, wallet: str) -> str:
