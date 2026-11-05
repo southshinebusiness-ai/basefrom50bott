@@ -90,6 +90,8 @@ async def get_full_stats() -> dict:
         started     = await one("SELECT COUNT(*) FROM users WHERE lesson_progress >= 1")
         completed   = await one("SELECT COUNT(*) FROM users WHERE lesson_progress >= 5 OR course_completed = 1")
         got_pdf     = await one("SELECT COUNT(DISTINCT user_id) FROM events WHERE event_type='received_pdfs'")
+        free_opened = await one("SELECT COUNT(DISTINCT user_id) FROM events WHERE event_type='free_guide_opened'")
+        free_sent   = await one("SELECT COUNT(DISTINCT user_id) FROM events WHERE event_type='free_guide_sent'")
 
         # Воронка гайда
         opened_guide  = await one("SELECT COUNT(DISTINCT user_id) FROM events WHERE event_type='view_guide'")
@@ -109,6 +111,7 @@ async def get_full_stats() -> dict:
         "total": total, "new_today": new_today,
         "new_week": new_week, "new_month": new_month,
         "started": started, "completed": completed, "got_pdf": got_pdf,
+        "free_opened": free_opened, "free_sent": free_sent,
         "opened_guide": opened_guide, "payment_init": payment_init, "purchased": purchased,
         "rev_total": rev_total, "rev_today": rev_today,
         "rev_week": rev_week, "rev_month": rev_month,
@@ -134,10 +137,9 @@ async def cmd_stats(message: Message):
         f"  За месяц: <b>+{s['new_month']}</b>\n"
         f"  Активны сегодня: <b>{s['active_today']}</b>\n\n"
 
-        "🎓 <b>Бесплатный курс</b>\n"
-        f"  Начали: <b>{s['started']}</b> ({pct(s['started'], s['total'])})\n"
-        f"  Прошли: <b>{s['completed']}</b> ({pct(s['completed'], s['total'])})\n"
-        f"  Получили PDF: <b>{s['got_pdf']}</b> ({pct(s['got_pdf'], s['total'])})\n\n"
+        "🎓 <b>Бесплатный гайд</b>\n"
+        f"  Открыли: <b>{s['free_opened']}</b>\n"
+        f"  Получили PDF: <b>{s['free_sent']}</b> ({pct(s['free_sent'], s['free_opened'])} от открывших)\n\n"
 
         "💎 <b>ULTIMATE GUIDE</b>\n"
         f"  Открыли раздел: <b>{s['opened_guide']}</b>\n"
