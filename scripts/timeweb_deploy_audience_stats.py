@@ -1,4 +1,4 @@
-"""Deploy the isolated /stats audience-label change to Timeweb safely.
+"""Deploy the isolated /stats free-guide event-count fix to Timeweb safely.
 
 Only handlers/admin.py is changed. No .env, bot token, payment settings,
 or database rows are modified. SQLite is backed up before the restart.
@@ -15,9 +15,9 @@ import paramiko
 HOST = "5.129.247.209"
 HOST_KEY = "IvZC5ONQ0G6HtVH3efNl7B7VLEjpDujQEYn2iBrNJKI"
 LIVE = "/opt/basefrom50-stage/handlers/admin.py"
-OLD_BLOB = "9fe10a926bca4c25560eb3a611946947a140d3b8"
-NEW_BLOB = "9aff0c1ccfb00e16bcedee1ae9e5187fa46bf084"
-BACKUP = "/root/basefrom50-backups/stats-original-layout-20261102"
+OLD_BLOB = "9aff0c1ccfb00e16bcedee1ae9e5187fa46bf084"
+NEW_BLOB = "85fe8ebb27b5f9efda19337a0b4090e76620f318"
+BACKUP = "/root/basefrom50-backups/stats-free-guide-20261105"
 
 
 def blob_sha(data):
@@ -88,7 +88,7 @@ def main():
             with sftp.open(BACKUP + "/admin.py.before", "wb") as f:
                 f.write(original)
             sftp.chmod(BACKUP + "/admin.py.before", 0o600)
-            remote(t, "python3 -c 'import sqlite3; a=sqlite3.connect(\"/opt/bot/data/bot.db\"); b=sqlite3.connect(\"/root/basefrom50-backups/stats-original-layout-20261102/bot.db\"); a.backup(b); b.close(); a.close()'")
+            remote(t, "python3 -c 'import sqlite3; a=sqlite3.connect(\"/opt/bot/data/bot.db\"); b=sqlite3.connect(\"/root/basefrom50-backups/stats-free-guide-20261105/bot.db\"); a.backup(b); b.close(); a.close()'")
             sftp.chmod(BACKUP + "/bot.db", 0o600)
             print("Original source and live SQLite backed up on Timeweb.")
 
@@ -108,7 +108,7 @@ def main():
                 raise
 
             print("Timeweb bot active; local health OK.")
-            print("Original /stats layout restored; historical 95 users and 1 sale added only to display. Live DB and payment configuration unchanged.")
+            print("/stats free-guide event counts fixed; live DB and payment configuration unchanged.")
         finally:
             sftp.close()
     finally:
