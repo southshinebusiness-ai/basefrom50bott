@@ -12,7 +12,7 @@ from utils.keyboards import main_menu
 from content import texts
 
 router = Router()
-BANNER = Path("content/images/banner_menu_final.png")
+BANNER = Path("content/images/banner_menu_basefrom50_20261118.jpg")
 
 
 async def _send_menu(bot: Bot, chat_id: int, state: FSMContext):
