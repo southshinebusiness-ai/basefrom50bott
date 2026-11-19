@@ -14,9 +14,9 @@ import paramiko
 HOST = "5.129.247.209"
 HOST_KEY = "IvZC5ONQ0G6HtVH3efNl7B7VLEjpDujQEYn2iBrNJKI"
 LIVE = "/opt/basefrom50-stage/handlers/main_menu.py"
-OLD_BLOB = "b572beec3a830c6d331dfddb190e122f90f56f67"
-NEW_BLOB = "b85ea39fda5ff6c74c51991ad30119495bcffc73"
-BACKUP = "/root/basefrom50-backups/menu-image-uploader-20261119"
+OLD_BLOB = "b85ea39fda5ff6c74c51991ad30119495bcffc73"
+NEW_BLOB = "bce9aa60ec257419e304db3b010c8b9ddb6976ce"
+BACKUP = "/root/basefrom50-backups/menu-image-signature-fix-20261119"
 
 
 def blob_sha(data):
@@ -92,7 +92,7 @@ def main():
                 upload(sftp, LIVE, original, mode)
                 remote(t, "systemctl restart basefrom50bot.service", timeout=35)
                 raise
-            print("Timeweb healthy. Admin-only /setmenu upload is ready.")
+            print("Timeweb healthy. Fixed /setmenu PNG/JPEG detection is ready.")
             print("DB, existing banner, YooMoney and bot token unchanged.")
         finally:
             sftp.close()
