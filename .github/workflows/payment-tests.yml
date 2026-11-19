@@ -1,0 +1,22 @@
+name: Payment reliability tests
+
+on:
+  push:
+    branches:
+      - fix/yoomoney-payments-reliability-2026
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Compile Python files
+        run: python -m compileall -q main.py config.py db handlers utils content
+      - name: Run tests
+        run: python -m unittest discover -s tests -p 'test_*.py' -v

@@ -1,0 +1,25 @@
+name: Timeweb deploy audience stats only
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/yoomoney-payments-reliability-2026
+    paths:
+      - scripts/timeweb_deploy_audience_stats.py
+      - .github/workflows/timeweb-deploy-audience-stats.yml
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python -m pip install --quiet 'paramiko>=3.4,<5'
+      - name: Backup database and deploy only /stats user labels
+        env:
+          TIMEWEB_SSH_PASSWORD: ${{ secrets.TIMEWEB_SSH_PASSWORD }}
+        run: python scripts/timeweb_deploy_audience_stats.py

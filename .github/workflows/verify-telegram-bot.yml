@@ -1,0 +1,39 @@
+name: Verify Telegram bot identity
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/yoomoney-payments-reliability-2026
+    paths:
+      - .github/workflows/verify-telegram-bot.yml
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Validate GitHub bot token with Telegram
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from urllib.request import urlopen
+          token = os.environ.get("BOT_TOKEN", "").strip()
+          if not token:
+              raise SystemExit("BOT_TOKEN secret is missing")
+          try:
+              with urlopen("https://api.telegram.org/bot" + token + "/getMe", timeout=12) as response:
+                  result = json.load(response)
+          except Exception:
+              raise SystemExit("Telegram getMe failed; token invalid or API unavailable")
+          bot = result.get("result") or {}
+          if not result.get("ok") or bot.get("username", "").lower() != "basefrom50bot":
+              raise SystemExit("Token does not belong to @basefrom50bot")
+          print("Token is valid for @basefrom50bot")
+          PY

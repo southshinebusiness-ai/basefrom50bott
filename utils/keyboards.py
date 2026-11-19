@@ -137,7 +137,11 @@ def calc_result_buttons() -> InlineKeyboardMarkup:
 def guide_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text=marketing_texts.BTN_GUIDE_BUY,
+            text=(
+                marketing_texts.BTN_GUIDE_BUY
+                if config.PRICE_ULTIMATE_GUIDE == 1990
+                else f"💎ЗАБРАТЬ ДОСТУП — {config.PRICE_ULTIMATE_GUIDE:,} ₽💎".replace(",", " ")
+            ),
             callback_data="guide_buy"
         )],
         [InlineKeyboardButton(

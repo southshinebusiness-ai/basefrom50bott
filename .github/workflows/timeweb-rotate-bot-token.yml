@@ -1,0 +1,26 @@
+name: Timeweb rotate Telegram bot token
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/yoomoney-payments-reliability-2026
+    paths:
+      - scripts/timeweb_rotate_bot_token.py
+      - .github/workflows/timeweb-rotate-bot-token.yml
+
+permissions:
+  contents: read
+
+jobs:
+  rotate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python -m pip install --quiet 'paramiko>=3.4,<5'
+      - name: Validate new BotFather token and install on Timeweb
+        env:
+          BASEFROM50_NEW_BOT_TOKEN: ${{ secrets.BASEFROM50_NEW_BOT_TOKEN }}
+          TIMEWEB_SSH_PASSWORD: ${{ secrets.TIMEWEB_SSH_PASSWORD }}
+        run: python scripts/timeweb_rotate_bot_token.py

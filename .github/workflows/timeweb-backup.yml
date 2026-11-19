@@ -1,0 +1,26 @@
+name: Timeweb protected backup
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/yoomoney-payments-reliability-2026
+    paths:
+      - scripts/timeweb_backup.py
+      - .github/workflows/timeweb-backup.yml
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python -m pip install --quiet 'paramiko>=3.4,<5'
+      - name: Backup SQLite and bot files on Timeweb
+        env:
+          TIMEWEB_API_TOKEN: ${{ secrets.TIMEWEB_API_TOKEN }}
+          TIMEWEB_SSH_PASSWORD: ${{ secrets.TIMEWEB_SSH_PASSWORD }}
+        run: python scripts/timeweb_backup.py

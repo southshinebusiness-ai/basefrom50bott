@@ -8,14 +8,35 @@ from aiogram import Router, F, Bot
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
 from aiogram.fsm.context import FSMContext
 from pathlib import Path
+from html import escape
 
 from db import database as db
 from utils.keyboards import guide_menu, payment_buttons, back_to_main, main_menu
 from utils.helpers import generate_payment_label, generate_yoomoney_link
+from utils.payment_delivery import deliver_paid_access
+from utils.payment_worker import reconcile_payment
+from utils.yoomoney_api import YooMoneyAPIError
 from content import texts, marketing_texts
 from config import config
 
 router = Router()
+
+
+def priced_text(text: str) -> str:
+    """Цена в описании должна совпадать с суммой реального платежа."""
+    price = f"{config.PRICE_ULTIMATE_GUIDE:,}".replace(",", " ")
+    return text.replace("1 990 ₽", f"{price} ₽")
+
+
+def offer_notice() -> str:
+    """Ненавязчивая ссылка на опубликованную оферту перед покупкой."""
+    url = config.OFFER_URL
+    if not url.startswith("https://"):
+        return ""
+    return (
+        "Оплачивая доступ, ты принимаешь условия "
+        f'<a href="{escape(url, quote=True)}">публичной оферты</a>.'
+    )
 
 
 async def create_secure_invite(bot: Bot, user_id: int) -> str | None:
@@ -61,7 +82,9 @@ async def send_guide_screen(bot: Bot, chat_id: int, user_id: int, state: FSMCont
 
     await bot.send_message(
         chat_id,
-        marketing_texts.GUIDE_DESCRIPTION,
+        priced_text(marketing_texts.GUIDE_DESCRIPTION) + (
+            "\n\n" + offer_notice() if offer_notice() else ""
+        ),
         reply_markup=guide_menu(),
         parse_mode="HTML"
     )
@@ -86,16 +109,30 @@ async def show_guide(callback: CallbackQuery, bot: Bot, state: FSMContext):
 
 
 @router.callback_query(F.data == "guide_buy")
-async def initiate_payment(callback: CallbackQuery):
+async def initiate_payment(callback: CallbackQuery, bot: Bot):
     """Создаёт платёж и показывает кнопку оплаты."""
     user_id = callback.from_user.id
 
     user = await db.get_user(user_id)
     if user and user.get("purchased_guide"):
-        await callback.answer(
-            "Ты уже купил гайд! Если потерял доступ — пиши @basefrom50man.",
-            show_alert=True
-        )
+        invite_link = await create_secure_invite(bot, user_id)
+        await callback.answer()
+        if invite_link:
+            await callback.message.answer(
+                "✅ <b>У тебя уже есть оплаченный доступ.</b>\n\n"
+                f"Вот новая ссылка для вступления:\n👉 {invite_link}",
+                parse_mode="HTML", disable_web_page_preview=True
+            )
+        else:
+            await callback.message.answer(
+                "Доступ уже оплачен, но создать ссылку не получилось. "
+                "Напиши @basefrom50man."
+            )
+        return
+
+    if not config.PAYMENTS_READY:
+        await callback.answer()
+        await callback.message.answer("⚠️ Оплата временно недоступна. Напиши @basefrom50man.")
         return
 
     label = generate_payment_label(user_id)
@@ -117,7 +154,9 @@ async def initiate_payment(callback: CallbackQuery):
     )
 
     await callback.message.edit_text(
-        texts.GUIDE_BUY,
+        priced_text(texts.GUIDE_BUY) + (
+            "\n\n" + offer_notice() if offer_notice() else ""
+        ),
         reply_markup=payment_buttons(pay_url),
         parse_mode="HTML"
     )
@@ -126,57 +165,91 @@ async def initiate_payment(callback: CallbackQuery):
 
 @router.callback_query(F.data == "check_payment")
 async def check_payment(callback: CallbackQuery, bot: Bot):
-    """
-    Резервная проверка по кнопке 'Я оплатил'.
-    В норме webhook уже должен был выдать доступ автоматически.
-    """
+    """Проверяет локальный статус, затем историю кошелька по уникальному label."""
     user_id = callback.from_user.id
-
     await callback.answer()
 
-    # Проверяем — может webhook уже обработал платёж
+    payment = await db.get_latest_payment(user_id)
     user = await db.get_user(user_id)
+
+    # Восстановление старой записи: деньги подтверждены в БД,
+    # но флаг пользователя мог не сохраниться после сбоя процесса.
+    if (
+        payment and payment.get("status") in ("completed", "success")
+        and payment.get("operation_id") and not (user and user.get("purchased_guide"))
+    ):
+        await db.confirm_payment(payment["label"], payment["operation_id"])
+        user = await db.get_user(user_id)
+
+    # Ранее купленный гайд, в том числе вручную выданный доступ.
     if user and user.get("purchased_guide"):
-        # Доступ уже выдан через webhook — отправляем ссылку
+        if payment and payment.get("status") in ("completed", "success") and (
+            payment.get("delivery_status") in ("pending", "failed")
+        ):
+            if await deliver_paid_access(bot, payment["label"]):
+                await callback.message.answer(
+                    "✅ Оплата подтверждена. Ссылка на канал отправлена отдельным сообщением."
+                )
+                return
+
         invite_link = await create_secure_invite(bot, user_id)
-
-        try:
-            await callback.message.delete()
-        except Exception:
-            pass
-
         if invite_link:
-            payment_found_text = texts.GUIDE_PAYMENT_FOUND.format(invite_link=invite_link)
-            payment_found_text = payment_found_text.replace("@mmarsellus", "@basefrom50man")
             await callback.message.answer(
-                payment_found_text,
+                texts.GUIDE_PAYMENT_FOUND.format(invite_link=invite_link)
+                .replace("@mmarsellus", "@basefrom50man"),
                 reply_markup=main_menu(),
                 parse_mode="HTML",
-                disable_web_page_preview=True
+                disable_web_page_preview=True,
             )
         else:
             await callback.message.answer(
-                "✅ <b>Оплата подтверждена!</b>\n\n"
-                "Возникла проблема с созданием ссылки.\n"
-                "Напиши @basefrom50man — добавлю вручную.",
-                reply_markup=main_menu(),
-                parse_mode="HTML"
+                "✅ Оплата подтверждена, но ссылка пока не создаётся. "
+                "Напиши @basefrom50man, доступ сохранился."
             )
         return
 
-    # Webhook ещё не пришёл — просим подождать
+    if not payment:
+        await callback.message.answer(
+            "Не вижу начатого заказа. Открой ULTIMATE GUIDE и нажми кнопку покупки."
+        )
+        return
+
+    if config.YOOMONEY_TOKEN:
+        try:
+            if await reconcile_payment(bot, payment):
+                await callback.message.answer(
+                    "✅ Платёж найден в ЮMoney! "
+                    "Приглашение в закрытый канал отправлено отдельным сообщением. "
+                    "Если не получил — напиши @basefrom50man."
+                )
+                return
+        except YooMoneyAPIError:
+            await callback.message.answer(
+                "⚠️ Сейчас не удалось связаться с ЮMoney для проверки. "
+                "Попробуй ещё раз через минуту. Если оплатил — "
+                "деньги не пропали, напиши @basefrom50man."
+            )
+            return
+    else:
+        await callback.message.answer(
+            "⏳ Ожидаю автоматическое подтверждение ЮMoney. "
+            "Резервная проверка пока недоступна. "
+            "Если оплатил и прошло больше 5 минут — напиши @basefrom50man."
+        )
+        return
+
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔄 Проверить ещё раз", callback_data="check_payment")],
-        [InlineKeyboardButton(text="⬅️ Назад", callback_data="guide_buy")],
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="guide")],
     ])
     try:
         await callback.message.edit_text(
-            "⏳ <b>Платёж ещё обрабатывается...</b>\n\n"
-            "Обычно это занимает 10-30 секунд после оплаты.\n"
-            "Попробуй нажать кнопку ещё раз через минуту.\n\n"
+            "⏳ <b>Платёж пока не найден в ЮMoney.</b>\n\n"
+            "Если ты только что оплатил, подожди 30–60 секунд "
+            "и нажми «Проверить ещё раз».\n\n"
             "Если прошло больше 5 минут — пиши @basefrom50man.",
             reply_markup=kb,
-            parse_mode="HTML"
+            parse_mode="HTML",
         )
     except Exception:
-        pass  # Сообщение уже такое же — ничего не делаем
+        pass

@@ -25,6 +25,11 @@ from config import config
 
 router = Router()
 
+# Manually confirmed historical baseline before the Timeweb database.
+# These values affect only the /stats presentation, not users or payments.
+LEGACY_USERS_SNAPSHOT = 95
+LEGACY_SALES_SNAPSHOT = 1
+
 
 def is_admin(user_id: int) -> bool:
     return user_id == config.ADMIN_ID
@@ -45,6 +50,18 @@ def pct(part: int, total: int) -> str:
 def fmt(n: int) -> str:
     return f"{n:,}".replace(",", " ")
 
+def with_historical_totals(stats: dict) -> dict:
+    """Keep the original /stats layout, including the historical baseline.
+
+    Historical identities may overlap with the new Timeweb database.
+    This is an owner-requested displayed estimate, not a deduplicated count.
+    Do not modify SQLite or payment records.
+    """
+    return {
+        **stats,
+        "total": stats["total"] + LEGACY_USERS_SNAPSHOT,
+        "purchased": stats["purchased"] + LEGACY_SALES_SNAPSHOT,
+    }
 
 async def get_full_stats() -> dict:
     """Собирает расширенную статистику из БД."""
@@ -73,6 +90,8 @@ async def get_full_stats() -> dict:
         started     = await one("SELECT COUNT(*) FROM users WHERE lesson_progress >= 1")
         completed   = await one("SELECT COUNT(*) FROM users WHERE lesson_progress >= 5 OR course_completed = 1")
         got_pdf     = await one("SELECT COUNT(DISTINCT user_id) FROM events WHERE event_type='received_pdfs'")
+        free_opened = await one("SELECT COUNT(DISTINCT user_id) FROM events WHERE event_type='free_guide_opened'")
+        free_sent   = await one("SELECT COUNT(DISTINCT user_id) FROM events WHERE event_type='free_guide_sent'")
 
         # Воронка гайда
         opened_guide  = await one("SELECT COUNT(DISTINCT user_id) FROM events WHERE event_type='view_guide'")
@@ -80,10 +99,10 @@ async def get_full_stats() -> dict:
         purchased     = await one("SELECT COUNT(*) FROM users WHERE purchased_guide = 1")
 
         # Выручка
-        rev_total = await one("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status='success'")
-        rev_today = await one("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status='success' AND created_at >= ?", today)
-        rev_week  = await one("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status='success' AND created_at >= ?", week)
-        rev_month = await one("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status='success' AND created_at >= ?", month)
+        rev_total = await one("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status IN ('completed','success')")
+        rev_today = await one("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status IN ('completed','success') AND created_at >= ?", today)
+        rev_week  = await one("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status IN ('completed','success') AND created_at >= ?", week)
+        rev_month = await one("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status IN ('completed','success') AND created_at >= ?", month)
 
         # Активность сегодня
         active_today = await one("SELECT COUNT(DISTINCT user_id) FROM events WHERE created_at >= ?", today)
@@ -92,6 +111,7 @@ async def get_full_stats() -> dict:
         "total": total, "new_today": new_today,
         "new_week": new_week, "new_month": new_month,
         "started": started, "completed": completed, "got_pdf": got_pdf,
+        "free_opened": free_opened, "free_sent": free_sent,
         "opened_guide": opened_guide, "payment_init": payment_init, "purchased": purchased,
         "rev_total": rev_total, "rev_today": rev_today,
         "rev_week": rev_week, "rev_month": rev_month,
@@ -105,7 +125,7 @@ async def cmd_stats(message: Message):
     if not is_admin(message.from_user.id):
         return
 
-    s = await get_full_stats()
+    s = with_historical_totals(await get_full_stats())
 
     text = (
         "📊 <b>СТАТИСТИКА БОТА</b>\n\n"
@@ -117,10 +137,9 @@ async def cmd_stats(message: Message):
         f"  За месяц: <b>+{s['new_month']}</b>\n"
         f"  Активны сегодня: <b>{s['active_today']}</b>\n\n"
 
-        "🎓 <b>Бесплатный курс</b>\n"
-        f"  Начали: <b>{s['started']}</b> ({pct(s['started'], s['total'])})\n"
-        f"  Прошли: <b>{s['completed']}</b> ({pct(s['completed'], s['total'])})\n"
-        f"  Получили PDF: <b>{s['got_pdf']}</b> ({pct(s['got_pdf'], s['total'])})\n\n"
+        "🎓 <b>Бесплатный гайд</b>\n"
+        f"  Открыли: <b>{s['free_opened']}</b>\n"
+        f"  Получили PDF: <b>{s['free_sent']}</b> ({pct(s['free_sent'], s['free_opened'])} от открывших)\n\n"
 
         "💎 <b>ULTIMATE GUIDE</b>\n"
         f"  Открыли раздел: <b>{s['opened_guide']}</b>\n"
