@@ -48,9 +48,9 @@ async def _save_admin_banner(message: Message, bot: Bot):
         await bot.download(attachment, destination=tmp)
         with tmp.open("rb") as f:
             signature = f.read(8)
-        if signature.startswith(b"\\x89PNG\\r\\n\\x1a\\n"):
+        if signature.startswith(bytes.fromhex("89504e470d0a1a0a")):
             target, other = CUSTOM_BANNER_PNG, CUSTOM_BANNER_JPG
-        elif signature.startswith(b"\\xff\\xd8\\xff"):
+        elif signature.startswith(bytes.fromhex("ffd8ff")):
             target, other = CUSTOM_BANNER_JPG, CUSTOM_BANNER_PNG
         else:
             await message.answer("Поддерживаются только изображения PNG или JPG.")
